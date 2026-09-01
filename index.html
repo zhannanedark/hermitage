@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902012532">
+<link rel="stylesheet" href="styles.css?v=20260902013222">
 </head>
 <body>
 
@@ -75,12 +75,7 @@
         <span id="fMeta"></span>
       </div>
       <button class="f-go" id="fNext">Я перешла</button>
-      <button class="f-chev" id="fChev" onclick="askStopFollow();event.stopPropagation()">×</button>
-    </div>
-    <div class="f-confirm" id="fConfirm" hidden>
-      <b>Завершить маршрут?</b>
-      <button class="cf-no" onclick="hideConfirm()">Отмена</button>
-      <button class="cf-yes" onclick="stopFollow()">Завершить</button>
+      <button class="f-chev" id="fChev" onclick="collapseFollow();event.stopPropagation()">×</button>
     </div>
     <div class="f-more" id="fMore" hidden>
       <div class="f-goal" id="fGoal"></div>
@@ -105,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902012532"></script>
-<script src="data/rooms.js?v=20260902012532"></script>
-<script src="data/works.js?v=20260902012532"></script>
-<script src="data/routes.js?v=20260902012532"></script>
+<script src="data/zones.js?v=20260902013222"></script>
+<script src="data/rooms.js?v=20260902013222"></script>
+<script src="data/works.js?v=20260902013222"></script>
+<script src="data/routes.js?v=20260902013222"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -290,7 +285,7 @@ function paint(){
     hereDot.setAttribute('cx',cx);hereDot.setAttribute('cy',cy);
     herePulse.setAttribute('cx',cx);herePulse.setAttribute('cy',cy);
     let th=null;
-    if(compassSmooth!=null){
+    if(compassSmooth!=null&&Date.now()-compassAt<=3000){
       /* куда смотрит телефон — в координатах схемы, при любом повороте карты */
       th=(compassSmooth-MAP_NORTH-90)*Math.PI/180;
     }else{
@@ -363,16 +358,13 @@ function showZoneBar(){
   fitZone(zoneFilter);
   const b=document.getElementById('tRoute');
   b.style.display='';b.textContent='Пойдём';b.onclick=routeToZone;
-  bar.hidden=false;updateHereBar();
+  bar.hidden=false;targetShown();
 }
-function clearZone(){zoneFilter=null;buildLegend();paint();document.getElementById('target').hidden=true;updateHereBar()}
+function clearZone(){zoneFilter=null;buildLegend();paint();document.getElementById('target').hidden=true;targetGone()}
 function routeToZone(){
   const rm=zoneRoom(zoneFilter);
   if(!rm){toast('Не нашла зал этой коллекции');return}
-  const r=roomByN[rm];
-  if(!here){pendingGo=rm;openWhereAmI();return}
-  if(r.f!==FLOOR)setFloor(r.f);
-  routeTo(rm);
+  routeOrAsk(rm);   /* при активном маршруте спросит, а не перепишет молча */
 }
 
 /* пан/зум/поворот */
@@ -437,7 +429,7 @@ function fitRoute(){
 /* Ориентация карты: по маршруту → по компасу → фиксированно.
    MAP_NORTH — азимут, которому соответствует «вверх» на нашей схеме
    (сторона Невы). Подбирается один раз на месте калибровкой. */
-let orientMode='route', MAP_NORTH=0, compassRaw=null, compassSmooth=null;
+let orientMode='route', MAP_NORTH=0, compassRaw=null, compassSmooth=null, compassAt=0;
 function toggleTilt(){
   tilt=!tilt;document.getElementById('btnTilt').classList.toggle('on',tilt);applyView();
 }
@@ -469,13 +461,13 @@ function stopCompass(){
 function onCompass(e){
   let h=null;
   if(e.webkitCompassHeading!=null){
-    /* iOS: настоящий компас; при плохой калибровке (accuracy<0 или >40°) не верим */
-    if(e.webkitCompassAccuracy!=null&&(e.webkitCompassAccuracy<0||e.webkitCompassAccuracy>40))return;
+    /* iOS: настоящий компас; при совсем плохой калибровке не верим */
+    if(e.webkitCompassAccuracy!=null&&(e.webkitCompassAccuracy<0||e.webkitCompassAccuracy>55))return;
     h=e.webkitCompassHeading;
   }else if(e.absolute===true&&e.alpha!=null)h=360-e.alpha;
   else return;   /* гироскопный alpha дрейфует по кругу — не используем вовсе */
   if(h==null||isNaN(h))return;
-  compassRaw=h;
+  compassRaw=h;compassAt=Date.now();
   /* сильное сглаживание по кратчайшей дуге */
   if(compassSmooth==null)compassSmooth=h;
   else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.08+360)%360}
@@ -488,6 +480,8 @@ function onCompass(e){
 let _dotXY=null,_coneTh=null;
 function updateCone(){
   if(!here||!visibleOn(here,FLOOR)||compassSmooth==null||!_dotXY||!coneEl)return;
+  /* компас замолчал — замёрзшее «куда смотрю» врёт, лучше спрятать */
+  if(Date.now()-compassAt>3000){coneEl.setAttribute('display','none');_coneTh=null;return}
   const th=(compassSmooth-MAP_NORTH-90)*Math.PI/180;
   if(_coneTh!=null&&Math.abs(((th-_coneTh+Math.PI*3)%(Math.PI*2))-Math.PI)<0.05)return;
   _coneTh=th;
@@ -528,7 +522,6 @@ function updateHeading(){
 }
 let drag=null;
 stage.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,tx,ty};stage.setPointerCapture(e.pointerId);
-  const cf=document.getElementById('fConfirm');if(cf&&!cf.hidden)hideConfirm();
   if(orientMode!=='compass'&&locCentered){locCentered=false;renderLocateBtn()}
   if(followActive){followEl.classList.add('away');syncTools()}});
 stage.addEventListener('pointermove',e=>{if(!drag)return;
@@ -858,13 +851,23 @@ function focusRoom(n,label){
   document.getElementById('tRoute').style.display=here!==n?'':'none';
   const rb=document.getElementById('tRoute');rb.textContent='Пойдём';rb.onclick=targetRoute;
   document.getElementById('target').hidden=false;
-  updateHereBar();
+  targetShown();
   const e=roomEls[n];if(e){e.classList.remove('flash');void e.getBBox;e.classList.add('flash')}
   centerOn(n,1.5);
 }
+/* карточка цели и панель маршрута не живут одновременно:
+   цель показана — маршрут сворачивается и прячется, цель закрыта — чип возвращается */
+function targetShown(){
+  if(followActive){followEl.hidden=true;document.getElementById('resume').hidden=true}
+  updateHereBar();setTimeout(syncTools,0);
+}
+function targetGone(){
+  if(followActive)collapseFollow();
+  updateHereBar();setTimeout(syncTools,0);
+}
 function hideTarget(){
   document.getElementById('target').hidden=true;
-  updateHereBar();
+  targetGone();
   selected=null;
   if(!followActive){targetRoom=null;routePath=[]}   /* идём по маршруту — не сбрасываем */
   if(zoneFilter){zoneFilter=null;buildLegend()}
@@ -882,6 +885,8 @@ function moveHere(n,confirmed){
     sheet.classList.add('open');return;
   }
   here=n;closeSheet();updatePill();locCentered=false;renderLocateBtn();
+  const rr=roomByN[n];
+  if(rr&&!rr.pos&&rr.f!==FLOOR)setFloor(rr.f);   /* карта следует за человеком на его этаж */
   if(typeof resetEst==='function')resetEst();
   if(followActive){const i=routePath.indexOf(n);
     if(i>=0){followIdx=i;updateFollow()}
@@ -969,12 +974,29 @@ function routeTo(n){
   if(p.length<2){toast('Вы уже в этом зале');return}
   closeSheet();
   if(zoneFilter){zoneFilter=null;buildLegend()}   /* подсветка коллекции не остаётся висеть */
+  const wasFollowing=followActive;                /* перестроение на ходу — без лишних вопросов */
   routePath=p;selected=n;targetRoom=n;
-  const r=roomByN[n];
-  document.getElementById('target').hidden=true;   /* во время маршрута ведёт нижняя панель */
+  document.getElementById('target').hidden=true;
   const hf=floorOf(here);
   if(hf&&FLOOR!==hf)setFloor(hf);
-  paint();fitRoute();startFollow();
+  paint();fitRoute();
+  if(wasFollowing)startFollow();
+  else showRoutePreview(n,p);                     /* сначала показать путь, идти — по кнопке */
+}
+/* предпросмотр маршрута: путь на карте + итог + кнопка «В путь» */
+function showRoutePreview(n,p){
+  const bar=document.getElementById('target'),r=roomByN[n];
+  const mins=Math.max(1,Math.round((p.length-1)*0.7));
+  document.getElementById('tKind').textContent=tourStops?('маршрут · '+(tourName||'обход')):'маршрут';
+  document.getElementById('tTitle').textContent=goalWork!=null?WORKS[goalWork].t
+    :(isService(n)||isStair(n))?shortName(n):('Зал '+n+' · '+r.name.split('·')[0].trim());
+  document.getElementById('tSub').textContent=tourStops
+    ?`${tourStops.length} остановок · до первой ~${mins} мин`
+    :`${p.length-1} ${(p.length-1)<5?'зала':'залов'} · ~${mins} мин`;
+  const b=document.getElementById('tRoute');
+  b.style.display='';b.textContent='В путь';
+  b.onclick=()=>{bar.hidden=true;startFollow();};
+  bar.hidden=false;targetShown();
 }
 let tourSeen=[],tourName='';
 function startRoute(i){
@@ -983,8 +1005,6 @@ function startRoute(i){
   tourStops=R.s.slice();tourIdx=0;arrivalShown=false;tourName=R.t;
   while(tourIdx<tourStops.length-1&&tourStops[tourIdx]===here)tourIdx++;
   closeSheet();routeTo(tourStops[tourIdx]);
-
-  toast('Поехали: '+R.s.length+' остановок, первая — '+(roomByN[tourStops[tourIdx]].name));
 }
 function nextStop(){
   arrivalShown=false;
@@ -1023,8 +1043,6 @@ followEl.addEventListener('touchend',e=>{
   unhideSheet();
   if(fY==null){fSwipeOk=false;return}
   const dy=e.changedTouches[0].clientY-fY, m=document.getElementById('fMore');
-  const cf=document.getElementById('fConfirm');
-  if(!cf.hidden&&Math.abs(dy)>30){hideConfirm();fY=null;fSwipeOk=false;return}
   if(fSwipeOk){
     if(dy<-60&&m.hidden)setMore(true);
     else if(dy>60&&!m.hidden)setMore(false);
@@ -1049,7 +1067,6 @@ function startFollow(){
   if(autoPos&&typeof enableAutoPos==='function')enableAutoPos();
   document.getElementById('hereBar').hidden=true;
   setTimeout(syncTools,0);
-  document.getElementById('fConfirm').hidden=true;
   document.getElementById('fMore').hidden=true;
   document.getElementById('resume').hidden=true;
   updateFollow();updateHeading();
@@ -1071,7 +1088,6 @@ function expandFollow(){
 }
 function stopFollow(){followActive=false;tourStops=null;goalWork=null;followEl.hidden=true;
   const sc=document.getElementById('storyChip');if(sc)sc.hidden=true;
-  const c=document.getElementById('fConfirm');if(c)c.hidden=true;
   document.getElementById('target').hidden=true;targetRoom=null;
   if(zoneFilter){zoneFilter=null;buildLegend()}
   setTimeout(syncTools,0);
@@ -1169,19 +1185,8 @@ function setMore(open){
 }
 function toggleFollowDetails(e){
   if(e&&e.target&&(e.target.closest('.f-go')||e.target.closest('.f-chev')
-     ||e.target.closest('.f-confirm')||e.target.closest('.f-more')||e.target.closest('.trk')))return;
-  const cf=document.getElementById('fConfirm');
-  if(cf&&!cf.hidden){hideConfirm();return}
+     ||e.target.closest('.f-more')||e.target.closest('.trk')))return;
   setMore(document.getElementById('fMore').hidden);
-}
-function askStopFollow(){
-  document.getElementById('fMore').hidden=true;
-  document.getElementById('fConfirm').hidden=false;
-  setTimeout(syncTools,40);
-}
-function hideConfirm(){
-  document.getElementById('fConfirm').hidden=true;
-  setTimeout(syncTools,40);
 }
 
 function calibrate(d){
