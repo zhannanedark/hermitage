@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260901234639">
+<link rel="stylesheet" href="styles.css?v=20260901235112">
 </head>
 <body>
 
@@ -106,10 +106,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260901234639"></script>
-<script src="data/rooms.js?v=20260901234639"></script>
-<script src="data/works.js?v=20260901234639"></script>
-<script src="data/routes.js?v=20260901234639"></script>
+<script src="data/zones.js?v=20260901235112"></script>
+<script src="data/rooms.js?v=20260901235112"></script>
+<script src="data/works.js?v=20260901235112"></script>
+<script src="data/routes.js?v=20260901235112"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -472,13 +472,29 @@ function onCompass(e){
   else if(e.alpha!=null)h=360-e.alpha;
   if(h==null||isNaN(h))return;
   compassRaw=h;
-  /* сглаживание по кратчайшей дуге, чтобы карта не дрожала */
+  /* сильное сглаживание по кратчайшей дуге */
   if(compassSmooth==null)compassSmooth=h;
-  else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.18+360)%360}
-  if(orientMode==='compass'){
-    const target=-(compassSmooth-MAP_NORTH);
-    if(Math.abs(((target-rot+540)%360)-180)>1.2){rot=target;applyView(false);updateRose();paint()}
-  }
+  else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.12+360)%360}
+  if(orientMode==='compass'){rotTarget=-(compassSmooth-MAP_NORTH);startRotTick()}
+}
+/* Поворот как в больших картах: мёртвая зона + плавный доворот.
+   Мелкие покачивания телефона (до ~8°) карту не трогают вовсе;
+   на настоящий поворот карта доворачивается с затуханием. */
+let rotTarget=null,rotTicking=false,rotChasing=false;
+function startRotTick(){
+  if(rotTicking)return;rotTicking=true;
+  const step=()=>{
+    if(orientMode!=='compass'||rotTarget==null){rotTicking=false;rotChasing=false;return}
+    const d=((rotTarget-rot+540)%360)-180,ad=Math.abs(d);
+    if(!rotChasing&&ad>8)rotChasing=true;        /* мёртвая зона: игнорируем дрожь */
+    if(rotChasing){
+      rot=rot+d*0.12;                            /* затухающий доворот */
+      if(ad<0.6){rot=rotTarget;rotChasing=false}
+      applyView(false);updateRose();paint();
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 function updateRose(){ renderLocateBtn(); }
 function updateHeading(){
@@ -1152,7 +1168,7 @@ function hideConfirm(){
 function calibrate(d){
   MAP_NORTH=(MAP_NORTH+d+360)%360;
   toast('Север сдвинут на '+Math.round(MAP_NORTH)+'°');
-  if(orientMode==='compass'&&compassSmooth!=null){rot=-(compassSmooth-MAP_NORTH);applyView(false);updateRose()}
+  if(orientMode==='compass'&&compassSmooth!=null){rot=-(compassSmooth-MAP_NORTH);rotTarget=rot;applyView(false);updateRose()}
 }
 function advanceFollow(){
   if(!followActive)return;
