@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902012157">
+<link rel="stylesheet" href="styles.css?v=20260902012532">
 </head>
 <body>
 
@@ -105,10 +105,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902012157"></script>
-<script src="data/rooms.js?v=20260902012157"></script>
-<script src="data/works.js?v=20260902012157"></script>
-<script src="data/routes.js?v=20260902012157"></script>
+<script src="data/zones.js?v=20260902012532"></script>
+<script src="data/rooms.js?v=20260902012532"></script>
+<script src="data/works.js?v=20260902012532"></script>
+<script src="data/routes.js?v=20260902012532"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -575,7 +575,6 @@ stage.addEventListener('touchend',e=>{
 function resetView(){
   scale=1;tx=0;ty=0;applyT(true);
   if(here&&visibleOn(here,FLOOR))setTimeout(()=>centerOn(here,1.2),50);
-  toast('Обзор карты');
 }
 
 /* ================== ШТОРКА ================== */
@@ -583,11 +582,6 @@ const sheet=document.getElementById('sheet'),sheetBody=document.getElementById('
 function toast(m){
   const t=document.getElementById('toast');
   t.textContent=m;
-  const f=document.getElementById('follow'),r=document.getElementById('resume');
-  let b=24;
-  if(f&&!f.hidden&&!f.classList.contains('away'))b=f.offsetHeight+22;
-  else if(r&&!r.hidden)b=r.offsetHeight+22;
-  t.style.bottom=`calc(${b}px + env(safe-area-inset-bottom))`;
   t.classList.add('show');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);
 }
@@ -699,7 +693,6 @@ function setHereRoom(v){
   if(typeof resetEst==='function')resetEst();
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
   routePath=[];paint();centerOn(v,1.4);
-  toast(isService(v)?`Вы здесь: ${r.name}`:`Вы в зале ${v} — ${r.name}`);
 }
 /* классическая «стрелка навигации» — узнаваемый паттерн «найди меня» */
 const IC_ARROW='<svg viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z" fill="currentColor" stroke="none"/></svg>';
@@ -720,7 +713,6 @@ async function locateMe(){
   if(f!==FLOOR)setFloor(f);
   centerOn(here,Math.max(scale,1.6));
   locCentered=true;renderLocateBtn();
-  toast((isStair(here)||isService(here))?('Вы здесь: '+r.name):`Вы в зале ${here} — ${r.name}`);
   if(orientMode!=='compass'){
     const ok=await startCompass();
     if(ok){
@@ -896,7 +888,7 @@ function moveHere(n,confirmed){
     else if(targetRoom&&targetRoom!==n){routeTo(targetRoom);toast('Маршрут пересчитан');return}
     else stopFollow()}
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
-  paint();toast(isService(n)?'Вы здесь: '+shortName(n):'Вы в зале '+n);
+  paint();
 }
 
 /* ================== МАРШРУТ ================== */
@@ -1226,8 +1218,7 @@ function advanceFollow(){
     if(ft&&FLOOR!==ft){setFloor(ft);if(typeof resetEst==='function')resetEst();toast('Вы на '+ft+' этаже')}
   }else{
     if(r.f!==FLOOR)setFloor(r.f);
-    const ws=worksByRoom[node];
-    if(ws&&followIdx+1<routePath.length)toast(`По пути: ${ws[0].t} — ${ws[0].a}`);
+    /* про шедевры по пути рассказывает зелёная подсказка на панели — тост не дублируем */
   }
   paint();updateFollow();updateHeading();
   requestAnimationFrame(()=>centerOn(here,Math.max(scale,1.3)));
@@ -1334,8 +1325,6 @@ function onStep(){
     paint();if(orientMode==='compass'||locCentered)centerOn(here,Math.max(scale,1.4));
     if(followActive)updateFollow();
     if(navigator.vibrate)navigator.vibrate(30);
-    const w=(worksByRoom[best]||[])[0];
-    toast(`Зал ${best}${w?' · '+w.t:''}`);
   }else{
     est.x=Math.max(r.x+3,Math.min(est.x,r.x+r.w-3));
     est.y=Math.max(r.y+3,Math.min(est.y,r.y+r.h-3));
