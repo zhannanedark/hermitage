@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260901231613">
+<link rel="stylesheet" href="styles.css?v=20260901234639">
 </head>
 <body>
 
@@ -106,10 +106,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260901231613"></script>
-<script src="data/rooms.js?v=20260901231613"></script>
-<script src="data/works.js?v=20260901231613"></script>
-<script src="data/routes.js?v=20260901231613"></script>
+<script src="data/zones.js?v=20260901234639"></script>
+<script src="data/rooms.js?v=20260901234639"></script>
+<script src="data/works.js?v=20260901234639"></script>
+<script src="data/routes.js?v=20260901234639"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -1456,22 +1456,22 @@ function openNav(view,q){
      <button class="${navView==='works'?'on':''}" onclick="openNav('works')">Шедевры</button>
    </div>`;
   if(navView==='routes'){
-    body+=`<button class="mybtn" id="myRouteBtn" onclick="startMyRoute()" ${favs.size<2?'hidden':''}>
+    body+=`<div class="sec" style="margin-top:6px">Если устали</div>
+    <div class="quick">
+      <button onclick="goAmenity('rest','Зона отдыха')">Присесть</button>
+      <button onclick="goAmenity('cafe','Кафетерий')">Кофе</button>
+      <button onclick="goAmenity('shop','Музейный магазин')">Магазин</button>
+      <button onclick="goAmenity('exit','Выход')">К выходу</button>
+    </div>
+    <div class="sec">Маршруты</div>
+    <button class="mybtn" id="myRouteBtn" onclick="startMyRoute()" ${favs.size<2?'hidden':''}>
       <b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке</button>`
     +ROUTES.map((r,i)=>`<button class="rt${r.hero?' hero':''}" onclick="startRoute(${i})">
       <span class="rt-row">
         <span class="thumb rt-cov"><span class="ph">${r.t[0]}</span><img data-q="${r.cov||r.t}" data-wt="${r.cov||''}" alt=""></span>
         <span class="rt-tx"><b>${r.t}</b><span class="meta">${r.m}</span></span>
       </span>
-      <span class="dsc">${r.d}</span></button>`).join('')
-    /* бытовое — в конце: главный выбор на этом экране — маршруты/коллекции/шедевры */
-    +`<div class="sec">Если устали</div>
-    <div class="quick">
-      <button onclick="goAmenity('rest','Зона отдыха')">Присесть</button>
-      <button onclick="goAmenity('cafe','Кафетерий')">Кофе</button>
-      <button onclick="goAmenity('shop','Музейный магазин')">Магазин</button>
-      <button onclick="goAmenity('exit','Выход')">К выходу</button>
-    </div>`;
+      <span class="dsc">${r.d}</span></button>`).join('');
   }else if(navView==='cols'){
     body+=`<div class="cols">`+COLLECTIONS.map((c,i)=>c.moved
       ?`<div class="col-row"><span class="bar" style="background:var(--z-closed)"></span>
