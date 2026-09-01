@@ -572,7 +572,7 @@ sheet.addEventListener('touchend',e=>{
   else if(sheet.classList.contains('fixed')&&dy<-40){navTall=true;sheet.classList.add('tall')}
   shY=null;shD=0});
 document.getElementById('welcome').addEventListener('click',e=>{if(e.target===e.currentTarget)hideWelcome()});
-function hideWelcome(){document.getElementById('welcome').style.display='none'}
+function hideWelcome(){document.getElementById('welcome').style.display='none';startGeoWatch()}
 
 /* превью и справка */
 const thumbCache={},extCache={};
@@ -631,8 +631,13 @@ function updateHereBar(){
 function openWhereAmI(){
   sheet.classList.remove('fixed');
   document.getElementById('sheetSticky').hidden=true;
+  startGeoWatch();
+  /* если геолокация уже знает, где мы, — сразу предлагаем, без лишнего шага */
+  const gf=(lastFix&&Date.now()-lastFix.t<30000&&lastFix.ac<=80&&lastFix.inside)?lastFix:null;
   sheetBody.innerHTML=`<h2>Где вы сейчас?</h2>
-   <div class="empty" style="margin-top:4px">Номер зала написан на табличке у входа в каждый зал.</div>
+   ${gf?`<div class="empty" style="margin-top:4px">Похоже, вы здесь (точность ±${Math.round(gf.ac)} м) — выберите этаж:</div>${geoOptionsHTML(gf)}
+   <div class="empty">Или назовите номер зала с таблички.</div>`
+      :`<div class="empty" style="margin-top:4px">Номер зала написан на табличке у входа в каждый зал.</div>`}
    <div class="wa-row">
      <input id="waIn" type="number" inputmode="numeric" enterkeyhint="go" placeholder="Номер зала">
      <button onclick="waGo()">Готово</button>
@@ -696,7 +701,7 @@ async function locateMe(){
   }
 }
 function startAtEntrance(){
-  hideWelcome();stopFollow();autoCompass();here=2;
+  hideWelcome();stopFollow();autoCompass();startGeoWatch();here=2;
   if(FLOOR!==1)setFloor(1);
   updatePill();paint();centerOn(2,1.3);
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
@@ -713,36 +718,65 @@ function nearestRoomAt(x,y,f){
   });
   return best;
 }
+/* ---- непрерывная геолокация: определяем сами, без нажатий ----
+   watchPosition держит «пятно» позиции на карте; как только появляется
+   точный фикс внутри здания, а человек ещё нигде не отмечен — сами
+   показываем «Похоже, вы здесь» с выбором этажа. Одно касание. */
+let geoWatchId=null,lastFix=null,geoSuggested=false;
+function geoXY(p){
+  const{latitude:la,longitude:lo,accuracy:ac}=p.coords;
+  const x=GEO.xW+(lo-GEO.lonW)/(GEO.lonE-GEO.lonW)*(GEO.xE-GEO.xW);
+  const y=GEO.yN+(GEO.latN-la)/(GEO.latN-GEO.latS)*(GEO.yS-GEO.yN);
+  return{x,y,ac,inside:x>=-30&&x<=930&&y>=-20&&y<=620};
+}
+function drawFix(f){
+  if(!geoBlob)return;
+  geoBlob.setAttribute('cx',f.x);geoBlob.setAttribute('cy',f.y);
+  geoBlob.setAttribute('r',Math.min(420,Math.max(8,f.ac/GEO.mPerPx)));
+}
+function onGeoFix(p){
+  const f=geoXY(p);lastFix={...f,t:Date.now()};drawFix(f);
+  const welcomeUp=document.getElementById('welcome').style.display!=='none';
+  if(!here&&!geoSuggested&&!welcomeUp&&f.ac<=80&&f.inside){
+    geoSuggested=true;showGeoSheet(f);
+  }
+}
+function startGeoWatch(){
+  if(geoWatchId!=null||!navigator.geolocation)return;
+  try{geoWatchId=navigator.geolocation.watchPosition(onGeoFix,()=>{},
+    {enableHighAccuracy:true,maximumAge:5000})}catch(e){}
+}
+function geoOptionsHTML(f){
+  const opts=[1,2,3].map(fl=>({fl,r:nearestRoomAt(f.x,f.y,fl)})).filter(o=>o.r);
+  return opts.map(o=>`<button class="w-sec" onclick="setHereRoom(${o.r.n})">
+     ${o.fl} этаж · ${o.r.z==='service'?o.r.name:'зал '+o.r.n+' — '+o.r.name.split('·')[0].trim()}</button>`).join('');
+}
+function showGeoSheet(f){
+  sheetBody.innerHTML=`<h2>Похоже, вы здесь</h2>
+   <div class="empty" style="margin-top:4px">Точность ±${Math.round(f.ac)} м. Спутники не знают этажа —
+     выберите свой, и я отмечу вас в ближайшем зале:</div>
+   ${geoOptionsHTML(f)}
+   <div class="empty">Не похоже? Введите номер зала с таблички у входа.</div>
+   <div class="wa-row">
+     <input id="waIn" type="number" inputmode="numeric" enterkeyhint="go" placeholder="Номер зала">
+     <button onclick="waGo()">Готово</button>
+   </div>`;
+  sheet.classList.remove('fixed');document.getElementById('sheetSticky').hidden=true;
+  sheet.classList.add('open');
+}
 function tryGeo(){
   if(!navigator.geolocation){toast('Геолокация недоступна');return}
+  startGeoWatch();
+  if(lastFix&&Date.now()-lastFix.t<15000){handleFix(lastFix);return}
   toast('Определяю позицию…');
-  navigator.geolocation.getCurrentPosition(p=>{
-    const{latitude:la,longitude:lo,accuracy:ac}=p.coords;
-    const x=GEO.xW+(lo-GEO.lonW)/(GEO.lonE-GEO.lonW)*(GEO.xE-GEO.xW);
-    const y=GEO.yN+(GEO.latN-la)/(GEO.latN-GEO.latS)*(GEO.yS-GEO.yN);
-    geoBlob.setAttribute('cx',x);geoBlob.setAttribute('cy',y);
-    geoBlob.setAttribute('r',Math.min(420,Math.max(8,ac/GEO.mPerPx)));
-    const inside=x>=-30&&x<=930&&y>=-20&&y<=620;
-    if(ac<=80&&inside){
-      /* GPS даёт точку в плане, но не этаж — предлагаем ближайший зал на каждом */
-      const opts=[1,2,3].map(f=>({f,r:nearestRoomAt(x,y,f)})).filter(o=>o.r);
-      sheetBody.innerHTML=`<h2>Похоже, вы здесь</h2>
-       <div class="empty" style="margin-top:4px">Точность ±${Math.round(ac)} м. Спутники не знают этажа —
-         выберите свой, и я отмечу вас в ближайшем зале:</div>
-       ${opts.map(o=>`<button class="w-sec" onclick="setHereRoom(${o.r.n})">
-          ${o.f} этаж · ${o.r.z==='service'?o.r.name:'зал '+o.r.n+' — '+o.r.name.split('·')[0].trim()}</button>`).join('')}
-       <div class="empty">Не похоже? Введите номер зала с таблички у входа.</div>
-       <div class="wa-row">
-         <input id="waIn" type="number" inputmode="numeric" enterkeyhint="go" placeholder="Номер зала">
-         <button onclick="waGo()">Готово</button>
-       </div>`;
-      sheet.classList.remove('fixed');document.getElementById('sheetSticky').hidden=true;
-      sheet.classList.add('open');
-    }else{
-      toast(inside?`Точность ±${Math.round(ac)} м — маловато, чтобы угадать зал. Назовите номер с таблички.`
-                  :'Похоже, вы не в здании музея. Введите номер зала, когда будете внутри.');
-    }
-  },e=>toast(e.code===1?'Нет разрешения на геолокацию':'Не удалось определить'),{enableHighAccuracy:true,timeout:10000});
+  navigator.geolocation.getCurrentPosition(p=>{const f=geoXY(p);lastFix={...f,t:Date.now()};drawFix(f);handleFix(f)},
+    e=>toast(e.code===1?'Нет разрешения на геолокацию':'Не удалось определить'),
+    {enableHighAccuracy:true,timeout:10000});
+}
+function handleFix(f){
+  if(f.ac<=80&&f.inside)showGeoSheet(f);
+  else toast(f.inside?`Точность ±${Math.round(f.ac)} м — маловато, чтобы угадать зал. Назовите номер с таблички.`
+                     :'Похоже, вы не в здании музея. Введите номер зала, когда будете внутри.');
 }
 
 /* ================== КАРТОЧКА ЗАЛА ================== */
