@@ -125,6 +125,9 @@ let scale=1,tx=0,ty=0,tilt=false,rot=0;
 let followActive=false,followIdx=0;
 const roomByN={};ROOMS.forEach(r=>roomByN[r.n]=r);STAIRS.forEach(s=>roomByN[s.n]=s);
 const isStair=n=>!!roomByN[n]&&!!roomByN[n].pos;
+/* сервисные места (вход, кафе, магазин) называем по имени, а не «зал N» */
+const isService=n=>{const r=roomByN[n];return !!r&&!r.pos&&r.z==='service'};
+const shortName=n=>{const r=roomByN[n];return r?r.name.split('·')[0].trim():''};
 const floorOf=n=>{const r=roomByN[n];return r?(r.pos?null:r.f):null};
 const visibleOn=(n,f)=>{const r=roomByN[n];return r?(r.pos?!!r.pos[f]:r.f===f):false};
 const rectOf=(n,f)=>{const r=roomByN[n];return r.pos?r.pos[f]:r};
@@ -139,7 +142,7 @@ svg.style.width='100%';svg.style.height='100%';
 stage.appendChild(svg);
 const g=document.createElementNS(NS,'g');svg.appendChild(g);
 g.style.transformOrigin='0 0';
-let roomEls={},routeEl,coneEl,geoBlob,meGlow,labelEls=[],floorTagEls=[];
+let roomEls={},routeEl,coneEl,hereDot,herePulse,geoBlob,meGlow,labelEls=[],floorTagEls=[];
 function el(t,a,txt){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);
   if(txt!=null)e.textContent=txt;return e}
 function ctr(n){const r=rectOf(n,FLOOR);return r?[r.x+r.w/2,r.y+r.h/2]:null}
@@ -248,6 +251,8 @@ function buildFloor(){
   floorTagEls=[];
   coneEl=el('path',{class:'cone',d:'',display:'none'});g.appendChild(coneEl);
   geoBlob=el('circle',{class:'geo-blob',cx:-999,cy:-999,r:0});g.appendChild(geoBlob);
+  herePulse=el('circle',{class:'here-pulse',r:7,cx:-99,cy:-99,display:'none'});g.appendChild(herePulse);
+  hereDot=el('circle',{class:'here',r:6,cx:-99,cy:-99,display:'none'});g.appendChild(hereDot);
   paint();
 }
 
@@ -265,18 +270,35 @@ function paint(){
   });
   routeEl.setAttribute('d',routePath.length>1?routeD():'');
   drawFloorTags();
-  /* «вы здесь» — без точки: зал подсвечен рамкой-свечением и заливкой */
+  /* «вы здесь»: подсвеченный зал + точка с пульсом + конус направления */
   const show=here&&visibleOn(here,FLOOR);
+  hereDot.setAttribute('display',show?'':'none');
+  herePulse.setAttribute('display',show?'':'none');
   let cone=false;
   if(show){
     const rr=rectOf(here,FLOOR);
     meGlow.setAttribute('display','');
     meGlow.setAttribute('x',rr.x+0.6);meGlow.setAttribute('y',rr.y+0.6);
     meGlow.setAttribute('width',Math.max(2,rr.w-1.2));meGlow.setAttribute('height',Math.max(2,rr.h-1.2));
-    /* конус направления — только когда карта крутится за телефоном */
+    /* если слежение работает — рисуем реальную оценку внутри зала */
+    let cx,cy;
+    if(typeof autoPos!=='undefined'&&autoPos&&typeof est!=='undefined'&&est
+       &&est.x>=rr.x-2&&est.x<=rr.x+rr.w+2&&est.y>=rr.y-2&&est.y<=rr.y+rr.h+2){
+      cx=Math.max(rr.x+5,Math.min(est.x,rr.x+rr.w-5));
+      cy=Math.max(rr.y+5,Math.min(est.y,rr.y+rr.h-5));
+    }else{[cx,cy]=ctr(here)}
+    hereDot.setAttribute('cx',cx);hereDot.setAttribute('cy',cy);
+    herePulse.setAttribute('cx',cx);herePulse.setAttribute('cy',cy);
+    let th=null;
     if(orientMode==='compass'&&compassSmooth!=null){
-      const[cx,cy]=ctr(here);
-      const th=(-90-rot)*Math.PI/180;                /* куда смотрит телефон = вверх экрана */
+      th=(-90-rot)*Math.PI/180;                    /* куда смотрит телефон = вверх экрана */
+    }else{
+      const i=routePath.indexOf(here);
+      if(i>=0&&i+1<routePath.length&&visibleOn(routePath[i+1],FLOOR)){
+        const[nx,ny]=ctr(routePath[i+1]);th=Math.atan2(ny-cy,nx-cx);
+      }
+    }
+    if(th!==null){
       const R=40,ph=Math.PI/7;
       coneEl.setAttribute('d',`M${cx},${cy} L${cx+R*Math.cos(th-ph)},${cy+R*Math.sin(th-ph)} A${R},${R} 0 0 1 ${cx+R*Math.cos(th+ph)},${cy+R*Math.sin(th+ph)} Z`);
       coneEl.setAttribute('display','');cone=true;
@@ -574,10 +596,12 @@ async function wiki(q,mode,exact){
 function thumbHTML(w,cls){const i=(w.a||w.t).replace(/[«»]/g,'').trim()[0]||'★';
   return `<div class="thumb ${cls||''}"><span class="ph">${i}</span>
     <img data-q="${w.q}" data-wt="${w.wt||''}" alt=""></div>`}
+/* картинки — только по точному названию статьи (data-wt).
+   Нечёткий поиск отключён: он приносил случайные изображения
+   («Малая столовая» → Столовая гора и т.п.). Нет точного — остаётся буква. */
 function hydrate(root){root.querySelectorAll('img[data-q]').forEach(async img=>{
-  let t=null;
-  if(img.dataset.wt)t=await wiki(img.dataset.wt,'img',true);
-  if(!t)t=await wiki(img.dataset.q,'img',false);
+  if(!img.dataset.wt)return;
+  const t=await wiki(img.dataset.wt,'img',true);
   if(t){img.onload=()=>img.classList.add('ok');img.src=t}})}
 async function moreInfo(btn){btn.textContent='…';btn.disabled=true;
   const t=await wiki(btn.dataset.q,'txt',btn.dataset.exact==='1');const s=document.createElement('span');
@@ -587,7 +611,7 @@ async function moreInfo(btn){btn.textContent='…';btn.disabled=true;
 function updatePill(){
   const t=document.getElementById('meTx'),p=document.getElementById('mePill');
   if(!here){t.textContent='Где я?';p.classList.remove('set')}
-  else{t.textContent=(isStair(here)?'Лестница':'Зал '+here)+' ▾';p.classList.add('set')}
+  else{t.textContent=(isStair(here)?'Лестница':isService(here)?shortName(here):'Зал '+here)+' ▾';p.classList.add('set')}
   updateHereBar();
 }
 /* всегда отвечает на «где я и что здесь», когда маршрут не активен */
@@ -596,7 +620,7 @@ function updateHereBar(){
   const show=here&&!followActive&&document.getElementById('resume').hidden;
   if(!show){bar.hidden=true;setTimeout(syncTools,0);return}
   const r=roomByN[here],ws=worksByRoom[here]||[];
-  document.getElementById('hbTitle').textContent=isStair(here)?r.name:('Зал '+here+' · '+r.name);
+  document.getElementById('hbTitle').textContent=(isStair(here)||isService(here))?r.name:('Зал '+here+' · '+r.name);
   document.getElementById('hbSub').textContent=ws.length
     ? '★ '+ws.map(w=>w.t).join(', ')
     : (r.pos?'переход между этажами':ZONES[r.z].n);
@@ -640,14 +664,15 @@ function setHereRoom(v){
   if(typeof resetEst==='function')resetEst();
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
   routePath=[];paint();centerOn(v,1.4);
-  toast(`Вы в зале ${v} — ${r.name}`);
+  toast(isService(v)?`Вы здесь: ${r.name}`:`Вы в зале ${v} — ${r.name}`);
 }
-const IC_CROSS='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/><path d="M12 2v3.4M12 18.6V22M2 12h3.4M18.6 12H22"/></svg>';
+/* классическая «стрелка навигации» — узнаваемый паттерн «найди меня» */
+const IC_ARROW='<svg viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z" fill="currentColor" stroke="none"/></svg>';
 let locCentered=false;
 function renderLocateBtn(){
   const b=document.getElementById('btnLocate');if(!b)return;
   const c=orientMode==='compass';
-  b.innerHTML=IC_CROSS;
+  b.innerHTML=IC_ARROW;
   b.classList.toggle('compass',c);
   b.title=c?'Карта крутится за телефоном':'Показать, где я';
 }
@@ -660,7 +685,7 @@ async function locateMe(){
   if(f!==FLOOR)setFloor(f);
   centerOn(here,Math.max(scale,1.6));
   locCentered=true;renderLocateBtn();
-  toast(isStair(here)?('Вы здесь: '+r.name):`Вы в зале ${here} — ${r.name}`);
+  toast((isStair(here)||isService(here))?('Вы здесь: '+r.name):`Вы в зале ${here} — ${r.name}`);
   if(orientMode!=='compass'){
     const ok=await startCompass();
     if(ok){
@@ -678,6 +703,16 @@ function startAtEntrance(){
   openNav();toast('Вы у главного входа с Дворцовой площади');
 }
 const GEO={lonW:30.3060,lonE:30.3168,latN:59.9418,latS:59.9395,xW:20,xE:880,yN:40,yS:560,mPerPx:.84};
+/* ближайший к точке (x,y) открытый зал на этаже f */
+function nearestRoomAt(x,y,f){
+  let best=null,bd=1e9;
+  ROOMS.filter(r=>r.f===f&&r.z!=='closed').forEach(r=>{
+    const cx=Math.max(r.x,Math.min(x,r.x+r.w)),cy=Math.max(r.y,Math.min(y,r.y+r.h));
+    const d=Math.hypot(x-cx,y-cy);
+    if(d<bd){bd=d;best=r}
+  });
+  return best;
+}
 function tryGeo(){
   if(!navigator.geolocation){toast('Геолокация недоступна');return}
   toast('Определяю позицию…');
@@ -687,7 +722,26 @@ function tryGeo(){
     const y=GEO.yN+(GEO.latN-la)/(GEO.latN-GEO.latS)*(GEO.yS-GEO.yN);
     geoBlob.setAttribute('cx',x);geoBlob.setAttribute('cy',y);
     geoBlob.setAttribute('r',Math.min(420,Math.max(8,ac/GEO.mPerPx)));
-    toast(`Точность ±${Math.round(ac)} м — этаж и зал так не определить`);
+    const inside=x>=-30&&x<=930&&y>=-20&&y<=620;
+    if(ac<=80&&inside){
+      /* GPS даёт точку в плане, но не этаж — предлагаем ближайший зал на каждом */
+      const opts=[1,2,3].map(f=>({f,r:nearestRoomAt(x,y,f)})).filter(o=>o.r);
+      sheetBody.innerHTML=`<h2>Похоже, вы здесь</h2>
+       <div class="empty" style="margin-top:4px">Точность ±${Math.round(ac)} м. Спутники не знают этажа —
+         выберите свой, и я отмечу вас в ближайшем зале:</div>
+       ${opts.map(o=>`<button class="w-sec" onclick="setHereRoom(${o.r.n})">
+          ${o.f} этаж · ${o.r.z==='service'?o.r.name:'зал '+o.r.n+' — '+o.r.name.split('·')[0].trim()}</button>`).join('')}
+       <div class="empty">Не похоже? Введите номер зала с таблички у входа.</div>
+       <div class="wa-row">
+         <input id="waIn" type="number" inputmode="numeric" enterkeyhint="go" placeholder="Номер зала">
+         <button onclick="waGo()">Готово</button>
+       </div>`;
+      sheet.classList.remove('fixed');document.getElementById('sheetSticky').hidden=true;
+      sheet.classList.add('open');
+    }else{
+      toast(inside?`Точность ±${Math.round(ac)} м — маловато, чтобы угадать зал. Назовите номер с таблички.`
+                  :'Похоже, вы не в здании музея. Введите номер зала, когда будете внутри.');
+    }
   },e=>toast(e.code===1?'Нет разрешения на геолокацию':'Не удалось определить'),{enableHighAccuracy:true,timeout:10000});
 }
 
@@ -715,7 +769,7 @@ function selectRoom(n){
   const nb=(adj[n]||[]).filter(m=>roomByN[m]&&!roomByN[m].pos);
   sheetBody.innerHTML=`
    <div class="zone-tag" style="color:${z.c}"><span class="dot" style="background:${z.c}"></span>${z.n}</div>
-   <h2>${r.name}</h2><div class="roomno">Зал ${r.n} · ${r.f} этаж</div>
+   <h2>${r.name}</h2><div class="roomno">${isService(n)?'':('Зал '+r.n+' · ')}${r.f} этаж</div>
    ${(HIST[n]||ws.length)?'':`<div class="zdesc">${z.d}</div>`}
    ${HIST[n]?`<div class="hist"><b>История.</b> ${HIST[n]}</div>`:''}
    ${ws.length?`<div class="sec">Что здесь смотреть</div><div class="works">${ws.map(w=>`
@@ -769,7 +823,7 @@ function moveHere(n,confirmed){
     else if(targetRoom&&targetRoom!==n){routeTo(targetRoom);toast('Маршрут пересчитан');return}
     else stopFollow()}
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
-  paint();toast('Вы в зале '+n);
+  paint();toast(isService(n)?'Вы здесь: '+shortName(n):'Вы в зале '+n);
 }
 
 /* ================== МАРШРУТ ================== */
@@ -987,7 +1041,8 @@ function updateFollow(){
     }
   }else{
     const nn=routePath[ni],nx=roomByN[nn];
-    goTo.textContent=isStair(nn)?('Идите на '+nx.name):('Идите в зал '+nn);
+    goTo.textContent=isStair(nn)?('Идите на '+nx.name)
+      :isService(nn)?('Идите: '+shortName(nn)):('Идите в зал '+nn);
     const left=routePath.length-1-followIdx;
     const lastStep=(left===1);
     /* не дублируем название: если следующий зал и есть цель — пишем его один раз */
@@ -998,11 +1053,11 @@ function updateFollow(){
       ? `${tourName||'Маршрут'} · ${tourIdx+1} из ${tourStops.length}: ${goalLabel}`
       : `Идём к: ${goalLabel}`;
     /* кнопка называет сам шаг: понятно, что жать её надо, дойдя до зала */
-    btn.textContent=isStair(nn)?'Я на лестнице':('Я в зале '+nn);
+    btn.textContent=isStair(nn)?'Я на лестнице':isService(nn)?'Я на месте':('Я в зале '+nn);
     btn.classList.remove('done');
   }
   /* подробности — во второй половине панели */
-  document.getElementById('fHere').textContent=isStair(here)?cur.name:`Зал ${here} · ${cur.name}`;
+  document.getElementById('fHere').textContent=(isStair(here)||isService(here))?cur.name:`Зал ${here} · ${cur.name}`;
   const ws=worksByRoom[here]||[];
   const zone=cur.pos?null:ZONES[cur.z];
   document.getElementById('fWorks').innerHTML=ws.length
@@ -1257,8 +1312,8 @@ const TOPICS=[
   d:'Западноевропейские доспехи и конные рыцари — Рыцарский зал 243. Восточное оружие — Белоколонный зал 65. Индийское — зал 368.'},
  {k:['ваза','амфора','керамик','фарфор'],t:'Вазы и керамика',rooms:[128,130,118,388],
   d:'Колыванская ваза — зал 128. Греческие вазы — Двадцатиколонный зал 130 и зал 118. Иранская керамика — зал 388.'},
- {k:['икон','иконостас','образ'],t:'Иконы',rooms:[143,383,271],
-  d:'Русские иконы — залы 143–146. Византийские — зал 383. Иконостас дворцовой церкви — зал 271.'},
+ {k:['икон','иконостас','образ'],t:'Иконы',rooms:[143,381,271],
+  d:'Русские иконы — залы 143–146. Византийские — зал 381. Иконостас дворцовой церкви — зал 271.'},
  {k:['монет','медал','нумизмат','клад'],t:'Монеты и медали',rooms:[398],
   d:'Постоянная экспозиция нумизматики — залы 398–400 на третьем этаже.'},
  {k:['ковёр','ковер','ткан','гобелен','шпалер'],t:'Ткани и ковры',rooms:[26,48],
@@ -1425,6 +1480,12 @@ function openNav(view,q){
     if(q){s.focus();s.setSelectionRange(q.length,q.length)}}
 }
 function focusWork(i){const w=WORKS[i];focusRoom(w.room,w.t)}
+/* «Об авторе» показываем, только когда в поле автора — имя человека,
+   а не подпись вроде «137 год н. э.» или «иконы, утварь, шитьё» */
+function authorLinkable(w){
+  const a=(w.a||'').split(',')[0].trim();
+  return /^[А-ЯЁA-Z]/.test(a)&&!/\d/.test(a)&&a.length>3;
+}
 /* «пойдём» к конкретной вещи: помним, ради чего идём */
 function goToWork(i){
   const w=WORKS[i];goalWork=i;
@@ -1447,7 +1508,7 @@ function openWork(i,onTour){
     </div>
     ${HIST[w.room]?`<div class="hist"><b>О зале.</b> ${HIST[w.room]}</div>`:''}
     <button class="more" data-q="${w.wt||w.q}" data-exact="${w.wt?1:0}" onclick="moreInfo(this)">Подробнее</button>
-    <button class="more" style="margin-left:14px" data-q="${(w.a||'').split(',')[0]}" data-exact="0" onclick="moreInfo(this)">Об авторе</button>
+    ${authorLinkable(w)?`<button class="more" style="margin-left:14px" data-q="${(w.a||'').split(',')[0]}" data-exact="0" onclick="moreInfo(this)">Об авторе</button>`:''}
     <button class="more" style="margin-left:14px" onclick="focusWork(${i})">На карте</button>`;
   document.getElementById('sheetSticky').hidden=true;
   sheet.classList.add('open');hydrate(sheetBody);
