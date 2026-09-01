@@ -24,13 +24,17 @@ h1{font-family:'Inter Tight';font-weight:800;font-size:26px;letter-spacing:-.02e
 .floors button{border:0;background:transparent;width:32px;border-radius:999px;font:700 13px 'Inter';color:var(--ink-soft)}
 .floors button.on{background:var(--ink);color:#fff}
 .controls{display:flex;gap:8px;padding:6px 16px 4px}
+/* длинное имя зала сжимается в многоточие и никогда не давит «Куда пойти» */
 .me-pill{border:0;background:var(--surface);border-radius:999px;height:44px;padding:0 16px;
-  font:700 14px 'Inter';color:var(--ink-soft);display:flex;align-items:center;gap:7px;flex:0 0 auto}
+  font:700 14px 'Inter';color:var(--ink-soft);display:flex;align-items:center;gap:7px;
+  flex:0 1 auto;min-width:0;max-width:52%}
+.me-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.me-pill .ic{flex:0 0 auto}
 .me-pill.set{background:var(--surface);color:var(--ink)}
 .me-pill.set .ic{color:var(--ink)}
 .me-pill .ic{width:15px;height:15px}
-.btn-go{flex:1;border:0;background:var(--accent);color:var(--accent-ink);border-radius:999px;height:44px;
-  font:800 15px 'Inter Tight';display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-go{flex:1 0 auto;border:0;background:var(--accent);color:var(--accent-ink);border-radius:999px;height:44px;
+  font:800 15px 'Inter Tight';display:flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
 .legend{display:flex;gap:6px;overflow-x:auto;padding:8px 16px 10px;scrollbar-width:none}
 .legend::-webkit-scrollbar{display:none}
 .chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;
