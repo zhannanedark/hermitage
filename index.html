@@ -59,7 +59,6 @@
   <div class="herebar" id="hereBar" hidden>
     <div class="hb-tx" onclick="if(here)selectRoom(here)">
       <b id="hbTitle"></b><span id="hbSub"></span>
-      <button class="trk" id="trkChip2" onclick="trkTap();event.stopPropagation()"></button>
       <button class="hb-story" id="hbStory" hidden onclick="openWork(+this.dataset.i);event.stopPropagation()">★ Узнать</button>
     </div>
     <button class="hb-go" onclick="navScroll=0;navLastView=null;openNav('routes')">Куда пойти</button>
@@ -75,7 +74,6 @@
       <div class="f-mtx">
         <b id="fGoTo"></b>
         <span id="fMeta"></span>
-        <button class="trk" id="trkChip" onclick="trkTap();event.stopPropagation()"></button>
       </div>
       <button class="f-go" id="fNext">Я перешла</button>
       <button class="f-chev" id="fChev" onclick="askStopFollow();event.stopPropagation()">×</button>
@@ -117,12 +115,8 @@
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
   document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
 document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
-let _lastTouchEnd=0;
-document.addEventListener('touchend',e=>{
-  const now=Date.now();
-  if(now-_lastTouchEnd<320)e.preventDefault();
-  _lastTouchEnd=now;
-},{passive:false});
+/* быстрые повторные тапы НЕ глушим: preventDefault на touchend съедал клики
+   и интерфейс казался «мёртвым»; от двойного зума хватает touch-action:manipulation */
 
 /* ================== СОСТОЯНИЕ ================== */
 let FLOOR=2,here=null,selected=null,routePath=[],zoneFilter=null,targetRoom=null;
@@ -145,7 +139,7 @@ svg.style.width='100%';svg.style.height='100%';
 stage.appendChild(svg);
 const g=document.createElementNS(NS,'g');svg.appendChild(g);
 g.style.transformOrigin='0 0';
-let roomEls={},routeEl,coneEl,hereDot,herePulse,geoBlob,meGlow,labelEls=[],floorTagEls=[];
+let roomEls={},routeEl,coneEl,geoBlob,meGlow,labelEls=[],floorTagEls=[];
 function el(t,a,txt){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);
   if(txt!=null)e.textContent=txt;return e}
 function ctr(n){const r=rectOf(n,FLOOR);return r?[r.x+r.w/2,r.y+r.h/2]:null}
@@ -202,7 +196,7 @@ function drawFloorTags(){
 function buildFloor(){
   g.innerHTML='';roomEls={};labelEls=[];
   if(FLOOR===2){
-    g.appendChild(el('rect',{x:175,y:150,width:150,height:300,rx:6,class:'court'}));
+    g.appendChild(el('rect',{x:175,y:205,width:150,height:245,rx:6,class:'court'}));
     g.appendChild(el('text',{x:250,y:295,'text-anchor':'middle',class:'court-t'},'ВНУТРЕННИЙ ДВОР'));
     g.appendChild(el('text',{x:250,y:309,'text-anchor':'middle',class:'bld'},'Зимний дворец'));
     g.appendChild(el('rect',{x:444,y:150,width:36,height:330,rx:6,class:'court'}));
@@ -213,12 +207,15 @@ function buildFloor(){
     g.appendChild(el('text',{x:195,y:157,'text-anchor':'middle',class:'court-t'},'ВНУТРЕННИЙ ДВОР'));
   }
   if(FLOOR!==3){
-    g.appendChild(el('text',{x:660,y:30,'text-anchor':'middle',class:'bld'},'Старый и Новый Эрмитаж'));
+    g.appendChild(el('text',{x:660,y:36,'text-anchor':'middle',class:'bld'},'Старый и Новый Эрмитаж'));
   }
   const all=ROOMS.filter(r=>r.f===FLOOR).concat(STAIRS.filter(s=>s.pos[FLOOR]));
+  /* рисуем чуть меньше геометрии: тонкий зазор между залами, обводки не налезают */
+  const G=1.6;
   all.forEach(r=>{
     const st=!!r.pos,p=st?r.pos[FLOOR]:r,c=st?'var(--z-arsenal)':ZONES[r.z].c;
-    const rect=el('rect',{x:p.x,y:p.y,width:p.w,height:p.h,rx:3,class:'room',fill:c,'fill-opacity':.16,stroke:c});
+    const rect=el('rect',{x:p.x+G,y:p.y+G,width:Math.max(2,p.w-2*G),height:Math.max(2,p.h-2*G),
+      rx:3,class:'room',fill:c,'fill-opacity':.16,stroke:c});
     rect.addEventListener('click',()=>selectRoom(r.n));
     g.appendChild(rect);roomEls[r.n]=rect;
     if(st){
@@ -251,8 +248,6 @@ function buildFloor(){
   floorTagEls=[];
   coneEl=el('path',{class:'cone',d:'',display:'none'});g.appendChild(coneEl);
   geoBlob=el('circle',{class:'geo-blob',cx:-999,cy:-999,r:0});g.appendChild(geoBlob);
-  herePulse=el('circle',{class:'here-pulse',r:7,cx:-99,cy:-99,display:'none'});g.appendChild(herePulse);
-  hereDot=el('circle',{class:'here',r:6,cx:-99,cy:-99,display:'none'});g.appendChild(hereDot);
   paint();
 }
 
@@ -270,34 +265,18 @@ function paint(){
   });
   routeEl.setAttribute('d',routePath.length>1?routeD():'');
   drawFloorTags();
+  /* «вы здесь» — без точки: зал подсвечен рамкой-свечением и заливкой */
   const show=here&&visibleOn(here,FLOOR);
-  hereDot.setAttribute('display',show?'':'none');
-  herePulse.setAttribute('display',show?'':'none');
   let cone=false;
   if(show){
     const rr=rectOf(here,FLOOR);
     meGlow.setAttribute('display','');
-    meGlow.setAttribute('x',rr.x-2);meGlow.setAttribute('y',rr.y-2);
-    meGlow.setAttribute('width',rr.w+4);meGlow.setAttribute('height',rr.h+4);
-    /* если слежение работает — рисуем реальную оценку внутри зала */
-    let cx,cy;
-    if(typeof autoPos!=='undefined'&&autoPos&&typeof est!=='undefined'&&est
-       &&est.x>=rr.x-2&&est.x<=rr.x+rr.w+2&&est.y>=rr.y-2&&est.y<=rr.y+rr.h+2){
-      cx=Math.max(rr.x+5,Math.min(est.x,rr.x+rr.w-5));
-      cy=Math.max(rr.y+5,Math.min(est.y,rr.y+rr.h-5));
-    }else{[cx,cy]=ctr(here)}
-    hereDot.setAttribute('cx',cx);hereDot.setAttribute('cy',cy);
-    herePulse.setAttribute('cx',cx);herePulse.setAttribute('cy',cy);
-    let th=null;
+    meGlow.setAttribute('x',rr.x+0.6);meGlow.setAttribute('y',rr.y+0.6);
+    meGlow.setAttribute('width',Math.max(2,rr.w-1.2));meGlow.setAttribute('height',Math.max(2,rr.h-1.2));
+    /* конус направления — только когда карта крутится за телефоном */
     if(orientMode==='compass'&&compassSmooth!=null){
-      th=(-90-rot)*Math.PI/180;                    /* куда смотрит телефон = вверх экрана */
-    }else{
-      const i=routePath.indexOf(here);
-      if(i>=0&&i+1<routePath.length&&visibleOn(routePath[i+1],FLOOR)){
-        const[nx,ny]=ctr(routePath[i+1]);th=Math.atan2(ny-cy,nx-cx);
-      }
-    }
-    if(th!==null){
+      const[cx,cy]=ctr(here);
+      const th=(-90-rot)*Math.PI/180;                /* куда смотрит телефон = вверх экрана */
       const R=40,ph=Math.PI/7;
       coneEl.setAttribute('d',`M${cx},${cy} L${cx+R*Math.cos(th-ph)},${cy+R*Math.sin(th-ph)} A${R},${R} 0 0 1 ${cx+R*Math.cos(th+ph)},${cy+R*Math.sin(th+ph)} Z`);
       coneEl.setAttribute('display','');cone=true;
@@ -664,36 +643,32 @@ function setHereRoom(v){
   toast(`Вы в зале ${v} — ${r.name}`);
 }
 const IC_CROSS='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/><path d="M12 2v3.4M12 18.6V22M2 12h3.4M18.6 12H22"/></svg>';
-const IC_ARROW='<svg viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z"/></svg>';
 let locCentered=false;
 function renderLocateBtn(){
   const b=document.getElementById('btnLocate');if(!b)return;
   const c=orientMode==='compass';
-  b.innerHTML=c?IC_ARROW:IC_CROSS;
+  b.innerHTML=IC_CROSS;
   b.classList.toggle('compass',c);
-  b.classList.toggle('centered',!c&&locCentered);
-  b.title=c?'Карта крутится за телефоном — нажмите, чтобы выключить'
-    :(locCentered?'Нажмите ещё раз: карта будет крутиться за телефоном':'Показать, где я');
+  b.title=c?'Карта крутится за телефоном':'Показать, где я';
 }
+/* одна кнопка — одно действие: всегда находит вас на карте,
+   с любого этажа и из любой точки. Поворот за телефоном включается
+   попутно, если доступен; выключается поворотом карты двумя пальцами. */
 async function locateMe(){
   if(!here){openWhereAmI();return}
-  if(orientMode==='compass'){
-    stopCompass();orientMode='fixed';rot=0;applyView();updateRose();
-    renderLocateBtn();paint();toast('Карта зафиксирована: Нева сверху');return;
-  }
   const r=roomByN[here],f=r.pos?(r.pos[FLOOR]?FLOOR:+Object.keys(r.pos)[0]):r.f;
   if(f!==FLOOR)setFloor(f);
-  if(!locCentered&&!compassEverOn){
-    centerOn(here,1.6);locCentered=true;renderLocateBtn();
-    toast(isStair(here)?r.name:`Вы в зале ${here} — ${r.name}`);return;
-  }
-  const ok=await startCompass();
-  if(!ok){toast('Компас недоступен на этом устройстве');return}
-  orientMode='compass';compassEverOn=true;locCentered=true;
   centerOn(here,Math.max(scale,1.6));
-  renderLocateBtn();updateRose();paint();
-  const auto=await enableAutoPos();
-  toast(auto?'Карта крутится за телефоном':'Карта крутится за телефоном');
+  locCentered=true;renderLocateBtn();
+  toast(isStair(here)?('Вы здесь: '+r.name):`Вы в зале ${here} — ${r.name}`);
+  if(orientMode!=='compass'){
+    const ok=await startCompass();
+    if(ok){
+      orientMode='compass';compassEverOn=true;
+      renderLocateBtn();updateRose();paint();
+      enableAutoPos();
+    }
+  }
 }
 function startAtEntrance(){
   hideWelcome();stopFollow();autoCompass();here=2;
@@ -1022,7 +997,9 @@ function updateFollow(){
     document.getElementById('fGoal').textContent = tourStops
       ? `${tourName||'Маршрут'} · ${tourIdx+1} из ${tourStops.length}: ${goalLabel}`
       : `Идём к: ${goalLabel}`;
-    btn.textContent='Я здесь';btn.classList.remove('done');
+    /* кнопка называет сам шаг: понятно, что жать её надо, дойдя до зала */
+    btn.textContent=isStair(nn)?'Я на лестнице':('Я в зале '+nn);
+    btn.classList.remove('done');
   }
   /* подробности — во второй половине панели */
   document.getElementById('fHere').textContent=isStair(here)?cur.name:`Зал ${here} · ${cur.name}`;
@@ -1032,8 +1009,6 @@ function updateFollow(){
     ? `<span class="s">★</span> ${ws.map(w=>w.t).join(', ')}` : (zone?zone.n:'');
   document.getElementById('fInfo').hidden=!!cur.pos;
   if(!document.getElementById('fMore').hidden)renderStopList();
-  document.getElementById('fGoal').textContent=tourStops
-    ? `Маршрут: ${tourIdx+1} из ${tourStops.length} остановок` : '';
 }
 let _stopSig='';
 function renderStopList(force){
@@ -1110,7 +1085,8 @@ function advanceFollow(){
   const node=routePath[followIdx];here=node;
   updatePill();
   const nb=document.getElementById('fNext');
-  if(nb){nb.style.opacity='.5';setTimeout(()=>nb.style.opacity='',160)}
+  if(nb){nb.classList.remove('tick');void nb.offsetWidth;nb.classList.add('tick')}
+  if(navigator.vibrate)navigator.vibrate(15);
   if(typeof resetEst==='function')resetEst();   /* иначе шагомер вернёт точку назад */
   const r=roomByN[node];
   if(isStair(node)){
@@ -1121,7 +1097,6 @@ function advanceFollow(){
     const ws=worksByRoom[node];
     if(ws&&followIdx+1<routePath.length)toast(`По пути: ${ws[0].t} — ${ws[0].a}`);
   }
-  resetSteps();
   paint();updateFollow();updateHeading();
   requestAnimationFrame(()=>centerOn(here,Math.max(scale,1.3)));
   if(!document.getElementById('fMore').hidden)renderStopList();
@@ -1268,11 +1243,6 @@ async function trkTap(){
   toast('Слежу за вами');
 }
 function renderTrk(){
-  const live = autoPos && orientMode==='compass' && compassSmooth!=null;
-  const stepsOnly = autoPos && compassSmooth==null;
-  const txt = (live||stepsOnly) ? '● вы здесь' : '○ включить слежение';
-  ['trkChip','trkChip2'].forEach(id=>{const e=document.getElementById(id);if(!e)return;
-    e.textContent=txt;e.classList.toggle('on',live||stepsOnly)});
   const b=document.getElementById('btnAuto');
   if(b){b.classList.toggle('on',autoPos);b.textContent=autoPos?'Автоположение · вкл':'Автоположение · выкл'}
 }
@@ -1397,22 +1367,22 @@ function openNav(view,q){
      <button class="${navView==='works'?'on':''}" onclick="openNav('works')">Шедевры</button>
    </div>`;
   if(navView==='routes'){
-    body+=`<div class="sec" style="margin-top:6px">Если устали</div>
-    <div class="quick">
-      <button onclick="goAmenity('rest','Зона отдыха')">Присесть</button>
-      <button onclick="goAmenity('cafe','Кафетерий')">Кофе</button>
-      <button onclick="goAmenity('shop','Музейный магазин')">Магазин</button>
-      <button onclick="goAmenity('exit','Выход')">К выходу</button>
-    </div>
-    <div class="sec">Маршруты</div>
-    <button class="mybtn" id="myRouteBtn" onclick="startMyRoute()" ${favs.size<2?'hidden':''}>
+    body+=`<button class="mybtn" id="myRouteBtn" onclick="startMyRoute()" ${favs.size<2?'hidden':''}>
       <b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке</button>`
     +ROUTES.map((r,i)=>`<button class="rt${r.hero?' hero':''}" onclick="startRoute(${i})">
       <span class="rt-row">
         <span class="thumb rt-cov"><span class="ph">${r.t[0]}</span><img data-q="${r.cov||r.t}" data-wt="${r.cov||''}" alt=""></span>
         <span class="rt-tx"><b>${r.t}</b><span class="meta">${r.m}</span></span>
       </span>
-      <span class="dsc">${r.d}</span></button>`).join('');
+      <span class="dsc">${r.d}</span></button>`).join('')
+    /* бытовое — в конце: главный выбор на этом экране — маршруты/коллекции/шедевры */
+    +`<div class="sec">Если устали</div>
+    <div class="quick">
+      <button onclick="goAmenity('rest','Зона отдыха')">Присесть</button>
+      <button onclick="goAmenity('cafe','Кафетерий')">Кофе</button>
+      <button onclick="goAmenity('shop','Музейный магазин')">Магазин</button>
+      <button onclick="goAmenity('exit','Выход')">К выходу</button>
+    </div>`;
   }else if(navView==='cols'){
     body+=`<div class="cols">`+COLLECTIONS.map((c,i)=>c.moved
       ?`<div class="col-row"><span class="bar" style="background:var(--z-closed)"></span>
@@ -1470,17 +1440,15 @@ function openWork(i,onTour){
     <h2>${w.t}</h2>
     <div class="roomno">${w.a} · зал ${w.room} · ${r.f} этаж · ${r.name}</div>
     <div class="zdesc">${w.d}</div>
-    ${HIST[w.room]?`<div class="hist"><b>О зале.</b> ${HIST[w.room]}</div>`:''}
-    <button class="more" data-q="${w.wt||w.q}" data-exact="${w.wt?1:0}" onclick="moreInfo(this)">Подробнее</button>
-    <button class="more" style="margin-left:14px" data-q="${(w.a||'').split(',')[0]}" data-exact="0" onclick="moreInfo(this)">Об авторе</button>
     <div class="acts">
       ${onTour?`<button class="prim" onclick="closeSheet();arrivalShown=false;nextStop()">Дальше по маршруту →</button>`
         :`<button class="prim" onclick="goToWork(${i})">Пойдём</button>
-          <button onclick="focusWork(${i})">На карте</button>`}
+          <button onclick="toggleFav(${i},this);this.textContent=favs.has(${i})?'✓ в маршруте':'+ в маршрут'">${favs.has(i)?'✓ в маршруте':'+ в маршрут'}</button>`}
     </div>
-    <div class="acts" style="margin-top:8px">
-      <button onclick="toggleFav(${i},this);this.textContent=favs.has(${i})?'✓ в маршруте':'+ в мой маршрут'">${favs.has(i)?'✓ в маршруте':'+ в мой маршрут'}</button>
-    </div>`;
+    ${HIST[w.room]?`<div class="hist"><b>О зале.</b> ${HIST[w.room]}</div>`:''}
+    <button class="more" data-q="${w.wt||w.q}" data-exact="${w.wt?1:0}" onclick="moreInfo(this)">Подробнее</button>
+    <button class="more" style="margin-left:14px" data-q="${(w.a||'').split(',')[0]}" data-exact="0" onclick="moreInfo(this)">Об авторе</button>
+    <button class="more" style="margin-left:14px" onclick="focusWork(${i})">На карте</button>`;
   document.getElementById('sheetSticky').hidden=true;
   sheet.classList.add('open');hydrate(sheetBody);
 }

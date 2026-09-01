@@ -42,7 +42,6 @@ h1{font-family:'Inter Tight';font-weight:800;font-size:26px;letter-spacing:-.02e
 .neva-label{position:absolute;top:8px;left:50%;transform:translateX(-50%);font:700 10px 'Inter';
   color:var(--neva);letter-spacing:.32em;pointer-events:none}
 .tools .locate{background:#fff;color:var(--ink)}
-.tools .locate.centered{background:var(--ink);color:#fff}
 .tools .locate.compass{background:var(--accent);color:var(--accent-ink)}
 #stage{position:absolute;inset:0;touch-action:none}
 svg text{pointer-events:none;user-select:none}
@@ -61,10 +60,6 @@ svg text{pointer-events:none;user-select:none}
 .court-t{font:600 9px 'Inter';fill:var(--ink-soft);letter-spacing:.1em}
 .bld{font:700 10px 'Inter';fill:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase}
 .stair-i{stroke:var(--ink);stroke-width:1.6;fill:none;opacity:.7;stroke-linecap:round}
-.here{fill:var(--ink);stroke:var(--accent);stroke-width:3;transition:cx .35s linear,cy .35s linear}
-.here-pulse{transition:cx .35s linear,cy .35s linear}
-.here-pulse{fill:var(--accent);opacity:.55;animation:pu 1.7s ease-out infinite}
-@keyframes pu{0%{r:7}70%{r:17;opacity:0}100%{r:17;opacity:0}}
 .cone{fill:var(--ink);fill-opacity:.14}
 .routeline{fill:none;stroke:var(--ink);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;
   stroke-dasharray:1 9;animation:da 1.2s linear infinite}
@@ -261,9 +256,10 @@ svg text{pointer-events:none;user-select:none}
 .acts button{flex:1;height:48px;border-radius:999px;font:700 13px 'Inter';border:1px solid var(--line);background:#fff;color:var(--ink)}
 .acts .prim{background:var(--ink);border-color:var(--ink);color:#fff}
 .empty{font:500 14px 'Inter';color:var(--ink-soft);margin-top:12px}
-.tabs{display:flex;gap:6px;margin:12px 0 4px}
-.tabs button{flex:1;height:38px;border:1px solid var(--line);background:#fff;border-radius:999px;font:700 13px 'Inter';color:var(--ink-soft)}
-.tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+/* сегмент-контрол как у этажей: главный выбор экрана читается первым */
+.tabs{display:flex;gap:0;margin:14px 0 10px;background:var(--surface);border-radius:999px;padding:3px}
+.tabs button{flex:1;height:40px;border:0;background:transparent;border-radius:999px;font:700 13.5px 'Inter';color:var(--ink-soft)}
+.tabs button.on{background:var(--ink);color:#fff}
 .nav-search{width:100%;height:46px;border:0;border-radius:999px;padding:0 16px;font:500 15px 'Inter';
   margin:10px 0 2px;background:var(--surface);outline:none;color:var(--ink)}
 .wa-row{display:flex;gap:8px;margin:12px 0}
@@ -297,10 +293,11 @@ svg text{pointer-events:none;user-select:none}
 .col-row .fb{font:700 11px 'Inter';color:var(--ink-soft);background:#fff;border-radius:999px;padding:3px 9px;flex:0 0 auto}
 .mp{display:block;padding:12px 0;border-bottom:1px solid var(--line)}
 .mp-top{display:flex;gap:14px;align-items:center}
-.mp-acts{display:flex;gap:8px;margin:10px 0 2px}
-.mp-acts button{flex:1;height:38px;border-radius:999px;border:1px solid var(--line);background:#fff;
-  font:700 12.5px 'Inter';color:var(--ink)}
-.mp-acts .mp-go{background:var(--ink);border-color:var(--ink);color:#fff;flex:0 0 auto;padding:0 20px}
+/* кнопки — под текстом карточки, на одной оси с ним (отступ = превью + зазор) */
+.mp-acts{display:flex;gap:8px;margin:10px 0 2px 118px}
+.mp-acts button{flex:0 0 auto;height:36px;border-radius:999px;border:1px solid var(--line);background:#fff;
+  font:700 12.5px 'Inter';color:var(--ink);padding:0 14px}
+.mp-acts .mp-go{background:var(--ink);border-color:var(--ink);color:#fff;padding:0 18px}
 .mp-acts .fav.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .topic{background:#FFF3B8;border-radius:16px;padding:14px 16px;margin:10px 0}
 .topic b{display:block;font:800 15px 'Inter Tight';color:var(--accent-ink)}
@@ -311,6 +308,7 @@ svg text{pointer-events:none;user-select:none}
 .mp .tx{flex:1;min-width:0}
 .mp b{display:block;font:700 16px/1.3 'Inter'}
 .mp span{font:500 12.5px 'Inter';color:var(--ink-soft)}
+.mp-top .tx span{display:block;margin-top:1px}
 .mp .mpd{display:none;font:500 12.5px/1.45 'Inter';margin-top:3px}
 .mp.open .mpd{display:block}
 .mp button{border:0;background:var(--surface);border-radius:999px;height:36px;padding:0 14px;font:700 13px 'Inter';color:var(--ink);flex:0 0 auto}
@@ -319,10 +317,10 @@ svg text{pointer-events:none;user-select:none}
 .hint{font:500 12.5px/1.45 'Inter';color:var(--ink-soft);margin:8px 0 4px}
 .collect{width:100%;border:0;background:var(--ink);color:#fff;border-radius:14px;height:48px;
   font:700 13.5px 'Inter';margin-top:14px}
-.quick{display:flex;gap:6px;overflow-x:auto;margin:10px 0 12px;scrollbar-width:none}
+.quick{display:flex;gap:6px;overflow-x:auto;margin:8px 0 12px;scrollbar-width:none}
 .quick::-webkit-scrollbar{display:none}
-.quick button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:999px;
-  padding:9px 14px;font:600 13px 'Inter';color:var(--ink)}
+.quick button{flex:0 0 auto;border:0;background:var(--surface);border-radius:999px;
+  padding:8px 13px;font:600 12.5px 'Inter';color:var(--ink)}
 .mybtn{width:100%;border:0;background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;
   text-align:left;font:600 12.5px 'Inter';margin:2px 0 10px}
 .mybtn b{display:block;font:800 16px 'Inter Tight';margin-bottom:2px}
@@ -338,3 +336,9 @@ svg text{pointer-events:none;user-select:none}
   transition:.25s;z-index:50;pointer-events:none;text-align:left;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .toast.show{opacity:1;transform:translateY(0)}
+
+/* мгновенный отклик на нажатие: любая кнопка заметно реагирует под пальцем */
+button{transition:transform .1s ease,opacity .1s ease}
+button:active{transform:scale(.96);opacity:.85}
+.f-go.tick{animation:ftick .3s ease}
+@keyframes ftick{0%{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}100%{transform:scale(1)}}
