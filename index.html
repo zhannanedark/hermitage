@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260901235112">
+<link rel="stylesheet" href="styles.css?v=20260902010935">
 </head>
 <body>
 
@@ -106,10 +106,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260901235112"></script>
-<script src="data/rooms.js?v=20260901235112"></script>
-<script src="data/works.js?v=20260901235112"></script>
-<script src="data/routes.js?v=20260901235112"></script>
+<script src="data/zones.js?v=20260902010935"></script>
+<script src="data/rooms.js?v=20260902010935"></script>
+<script src="data/works.js?v=20260902010935"></script>
+<script src="data/routes.js?v=20260902010935"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -139,6 +139,7 @@ const stage=document.getElementById('stage'),NS='http://www.w3.org/2000/svg';
 const svg=document.createElementNS(NS,'svg');
 svg.setAttribute('viewBox','0 0 900 600');
 svg.style.width='100%';svg.style.height='100%';
+svg.style.overflow='visible';   /* при повороте карты подписи и ленты не обрезаются рамкой */
 stage.appendChild(svg);
 const g=document.createElementNS(NS,'g');svg.appendChild(g);
 g.style.transformOrigin='0 0';
@@ -290,8 +291,9 @@ function paint(){
     hereDot.setAttribute('cx',cx);hereDot.setAttribute('cy',cy);
     herePulse.setAttribute('cx',cx);herePulse.setAttribute('cy',cy);
     let th=null;
-    if(orientMode==='compass'&&compassSmooth!=null){
-      th=(-90-rot)*Math.PI/180;                    /* куда смотрит телефон = вверх экрана */
+    if(compassSmooth!=null){
+      /* куда смотрит телефон — в координатах схемы, при любом повороте карты */
+      th=(compassSmooth-MAP_NORTH-90)*Math.PI/180;
     }else{
       const i=routePath.indexOf(here);
       if(i>=0&&i+1<routePath.length&&visibleOn(routePath[i+1],FLOOR)){
@@ -474,22 +476,30 @@ function onCompass(e){
   compassRaw=h;
   /* сильное сглаживание по кратчайшей дуге */
   if(compassSmooth==null)compassSmooth=h;
-  else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.12+360)%360}
+  else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.08+360)%360}
   if(orientMode==='compass'){rotTarget=-(compassSmooth-MAP_NORTH);startRotTick()}
+  else if(here&&!window._coneRaf){   /* карта не крутится, но конус взгляда живёт */
+    window._coneRaf=requestAnimationFrame(()=>{window._coneRaf=null;paint()});
+  }
 }
-/* Поворот как в больших картах: мёртвая зона + плавный доворот.
-   Мелкие покачивания телефона (до ~8°) карту не трогают вовсе;
-   на настоящий поворот карта доворачивается с затуханием. */
-let rotTarget=null,rotTicking=false,rotChasing=false;
+/* Поворот как в больших картах: мёртвая зона + выдержка + плавный доворот.
+   Покачивания при ходьбе (±12° и короче трети секунды) карту не трогают;
+   устойчивый поворот корпуса — карта плавно доворачивается. */
+let rotTarget=null,rotTicking=false,rotChasing=false,rotDevSince=null;
 function startRotTick(){
   if(rotTicking)return;rotTicking=true;
   const step=()=>{
-    if(orientMode!=='compass'||rotTarget==null){rotTicking=false;rotChasing=false;return}
+    if(orientMode!=='compass'||rotTarget==null){rotTicking=false;rotChasing=false;rotDevSince=null;return}
     const d=((rotTarget-rot+540)%360)-180,ad=Math.abs(d);
-    if(!rotChasing&&ad>8)rotChasing=true;        /* мёртвая зона: игнорируем дрожь */
+    if(!rotChasing){
+      if(ad>12){                                  /* мёртвая зона */
+        if(rotDevSince==null)rotDevSince=performance.now();
+        else if(performance.now()-rotDevSince>350)rotChasing=true;  /* поворот устойчивый */
+      }else rotDevSince=null;
+    }
     if(rotChasing){
-      rot=rot+d*0.12;                            /* затухающий доворот */
-      if(ad<0.6){rot=rotTarget;rotChasing=false}
+      rot=rot+d*0.1;                              /* затухающий доворот */
+      if(ad<0.6){rot=rotTarget;rotChasing=false;rotDevSince=null}
       applyView(false);updateRose();paint();
     }
     requestAnimationFrame(step);
@@ -538,7 +548,7 @@ stage.addEventListener('touchmove',e=>{
         twistAcc+=Math.abs(dd);
         if(orientMode==='compass'&&twistAcc<28){/* мелкий доворот при щипке — игнорируем */}
         else{
-          if(orientMode==='compass'){orientMode='fixed';stopCompass();renderLocateBtn();renderTrk();
+          if(orientMode==='compass'){orientMode='fixed';renderLocateBtn();renderTrk();
             toast('Вы повернули карту вручную. Вернуть слежение — кнопкой внизу справа');}
           rot+=dd;applyView(false);updateRose();
         }
@@ -660,11 +670,6 @@ function openWhereAmI(){
    </div>
    <button class="w-sec" onclick="startAtEntrance()">Я у главного входа</button>
    <button class="w-sec" onclick="closeSheet();tryGeo()">Попробовать геолокацию</button>
-   <div class="sec">Слежение</div>
-   <div class="f-auto"><button id="btnAuto" class="on" onclick="toggleAutoPos()">Автоположение · вкл</button>
-     <span class="st" id="autoSt">считает шаги и переставляет точку сама</span></div>
-   <div class="f-cal">Карта смотрит не туда?
-     <button onclick="calibrate(-15)">⟲ −15°</button><button onclick="calibrate(15)">⟳ +15°</button></div>
    <div class="empty">Или закройте это окно и нажмите нужный зал прямо на карте.</div>`;
   sheet.classList.add('open');
   setTimeout(()=>{const i=document.getElementById('waIn');
@@ -1091,19 +1096,21 @@ function updateFollow(){
     }
   }else{
     const nn=routePath[ni],nx=roomByN[nn];
-    goTo.textContent=isStair(nn)?('Идите на '+nx.name)
-      :isService(nn)?('Идите: '+shortName(nn)):('Идите в зал '+nn);
     const left=routePath.length-1-followIdx;
     const lastStep=(left===1);
+    /* проходные кафе и магазины — не остановки, а «пройдите насквозь» */
+    goTo.textContent=isStair(nn)?('Идите на '+nx.name)
+      :isService(nn)?(lastStep?('Вам сюда: '+shortName(nn)):('Пройдите через '+shortName(nn)))
+      :('Идите в зал '+nn);
     /* не дублируем название: если следующий зал и есть цель — пишем его один раз */
     const goalLabel = goalWork!=null ? WORKS[goalWork].t : (goal?goal.name:'');
     meta.textContent = lastStep ? (isStair(nn)?'последний переход':'здесь и есть цель')
-                                : `${nx.name} · до цели ${left} ${left<5?'зала':'залов'}`;
+                                : `${nx.name} · осталось ${left} ${left<5?'зала':'залов'}`;
     document.getElementById('fGoal').textContent = tourStops
       ? `${tourName||'Маршрут'} · ${tourIdx+1} из ${tourStops.length}: ${goalLabel}`
       : `Идём к: ${goalLabel}`;
     /* кнопка называет сам шаг: понятно, что жать её надо, дойдя до зала */
-    btn.textContent=isStair(nn)?'Я на лестнице':isService(nn)?'Я на месте':('Я в зале '+nn);
+    btn.textContent=isStair(nn)?'Я на лестнице':isService(nn)?(lastStep?'Я пришла':'Дальше'):('Я в зале '+nn);
     btn.classList.remove('done');
   }
   /* подробности — во второй половине панели */
@@ -1472,7 +1479,7 @@ function openNav(view,q){
      <button class="${navView==='works'?'on':''}" onclick="openNav('works')">Шедевры</button>
    </div>`;
   if(navView==='routes'){
-    body+=`<div class="sec" style="margin-top:6px">Если устали</div>
+    body+=`<div class="sec" style="margin-top:20px">Если устали</div>
     <div class="quick">
       <button onclick="goAmenity('rest','Зона отдыха')">Присесть</button>
       <button onclick="goAmenity('cafe','Кафетерий')">Кофе</button>
@@ -1504,11 +1511,11 @@ function openNav(view,q){
       +(list.length?list.map(({w,i})=>`<div class="mp">
         <div class="mp-top" onclick="openWork(${i})">${thumbHTML(w,'wide')}
           <div class="tx"><b>${w.t}</b>
-            <span>${w.a}</span><span>зал ${w.room} · ${floorOf(w.room)} этаж</span></div>
-        </div>
-        <div class="mp-acts">
-          <button class="fav${favs.has(i)?' on':''}" onclick="toggleFav(${i},this)">${favs.has(i)?'✓ в маршруте':'+ в маршрут'}</button>
-          <button class="mp-go" onclick="goToWork(${i})">Пойдём</button>
+            <span>${w.a}</span><span>зал ${w.room} · ${floorOf(w.room)} этаж</span>
+            <div class="mp-acts">
+              <button class="fav${favs.has(i)?' on':''}" onclick="event.stopPropagation();toggleFav(${i},this)">${favs.has(i)?'✓ в маршруте':'+ в маршрут'}</button>
+              <button class="mp-go" onclick="event.stopPropagation();goToWork(${i})">Пойдём</button>
+            </div></div>
         </div></div>`).join('')
       :'')
       +(ql?findTopics(ql).map(t=>`<div class="topic">
