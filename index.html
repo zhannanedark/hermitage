@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902013222">
+<link rel="stylesheet" href="styles.css?v=20260902021017">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902013222"></script>
-<script src="data/rooms.js?v=20260902013222"></script>
-<script src="data/works.js?v=20260902013222"></script>
-<script src="data/routes.js?v=20260902013222"></script>
+<script src="data/zones.js?v=20260902021017"></script>
+<script src="data/rooms.js?v=20260902021017"></script>
+<script src="data/works.js?v=20260902021017"></script>
+<script src="data/routes.js?v=20260902021017"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -635,6 +635,9 @@ function updatePill(){
   const t=document.getElementById('meTx'),p=document.getElementById('mePill');
   if(!here){t.textContent='Где я?';p.classList.remove('set')}
   else{t.textContent=(isStair(here)?'Лестница':isService(here)?shortName(here):'Зал '+here)+' ▾';p.classList.add('set')}
+  /* точка на табе этажа, где вы отмечены */
+  const mf=here!=null?floorOf(here):null;
+  document.querySelectorAll('#floorTabs button').forEach(b=>b.classList.toggle('me',mf===+b.dataset.f));
   updateHereBar();
 }
 /* всегда отвечает на «где я и что здесь», когда маршрут не активен */
@@ -685,7 +688,10 @@ function setHereRoom(v){
   here=v;updatePill();
   if(typeof resetEst==='function')resetEst();
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
-  routePath=[];paint();centerOn(v,1.4);
+  /* открыт предпросмотр маршрута — перестраиваем его от нового места */
+  if(targetRoom&&targetRoom!==here&&!document.getElementById('target').hidden){routeTo(targetRoom);return}
+  routePath=[];targetRoom=null;document.getElementById('target').hidden=true;
+  paint();centerOn(v,1.4);updateHereBar();
 }
 /* классическая «стрелка навигации» — узнаваемый паттерн «найди меня» */
 const IC_ARROW='<svg viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z" fill="currentColor" stroke="none"/></svg>';
@@ -893,6 +899,8 @@ function moveHere(n,confirmed){
     else if(targetRoom&&targetRoom!==n){routeTo(targetRoom);toast('Маршрут пересчитан');return}
     else stopFollow()}
   if(pendingGo){const p=pendingGo;pendingGo=null;resumePending(p);return}
+  /* открыт предпросмотр маршрута — перестраиваем его от нового места */
+  if(!followActive&&targetRoom&&targetRoom!==n&&!document.getElementById('target').hidden){routeTo(targetRoom);return}
   paint();
 }
 
@@ -1521,7 +1529,12 @@ function openNav(view,q){
           <button class="go" onclick="routeToCollection(${i})">Пойдём</button></div>`).join('')+`</div>`;
   }else{
     const list=WORKS.map((w,i)=>({w,i})).filter(({w})=>!ql||(w.t+' '+w.a+' '+w.d).toLowerCase().includes(ql));
-    body+=`<input class="nav-search" id="navS" placeholder="Рембрандт, мумия, церковь…" value="${(q||'').replace(/"/g,'&quot;')}">`
+    /* номер зала в поиске — сразу показываем сам зал */
+    const qroom=/^\d{1,3}$/.test(ql)&&roomByN[+ql]&&!roomByN[+ql].pos?roomByN[+ql]:null;
+    body+=`<input class="nav-search" id="navS" placeholder="Рембрандт, мумия, зал 198…" value="${(q||'').replace(/"/g,'&quot;')}">`
+      +(qroom?`<div class="mp" style="display:flex;align-items:center;gap:10px">
+        <div class="tx"><b>Зал ${qroom.n} — ${qroom.name.split('·')[0].trim()}</b><span>${qroom.f} этаж · ${ZONES[qroom.z].n}</span></div>
+        <button onclick="closeSheet();focusRoom(${qroom.n})">Показать</button></div>`:'')
       +(list.length?list.map(({w,i})=>`<div class="mp">
         <div class="mp-top" onclick="openWork(${i})">${thumbHTML(w,'wide')}
           <div class="tx"><b>${w.t}</b>

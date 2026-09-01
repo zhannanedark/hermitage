@@ -23,6 +23,11 @@ h1{font-family:'Inter Tight';font-weight:800;font-size:26px;letter-spacing:-.02e
 .floors{display:flex;background:var(--surface);border-radius:999px;padding:3px;height:38px}
 .floors button{border:0;background:transparent;width:32px;border-radius:999px;font:700 13px 'Inter';color:var(--ink-soft)}
 .floors button.on{background:var(--ink);color:#fff}
+/* точка «вы на этом этаже» на табе */
+.floors button{position:relative}
+.floors button.me::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:4px;height:4px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 1px rgba(19,20,20,.15)}
 .controls{display:flex;gap:8px;padding:6px 16px 4px}
 /* длинное имя зала сжимается в многоточие и никогда не давит «Куда пойти» */
 .me-pill{border:0;background:var(--surface);border-radius:999px;height:44px;padding:0 16px;
