@@ -247,7 +247,8 @@ svg text{pointer-events:none;user-select:none}
 .more{display:inline-block;margin-top:10px;border:0;background:none;padding:0;font:700 13px 'Inter';color:var(--ink);
   text-decoration:underline;text-underline-offset:3px;text-decoration-color:#C9C9C4;text-decoration-thickness:1.5px}
 .wiki-x{display:block;margin-top:8px;font:500 12.5px/1.5 'Inter';color:var(--ink-soft);border-left:2px solid var(--line);padding-left:10px}
-.sec{font:700 11px 'Inter';letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:16px 0 8px}
+/* спокойные подзаголовки: обычный регистр, без разрядки */
+.sec{font:700 13.5px 'Inter';color:var(--ink-soft);margin:18px 0 8px}
 .nb{display:flex;flex-wrap:wrap;gap:6px}
 .nb button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font:600 13px 'Inter';color:var(--ink)}
 .nb button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
@@ -279,7 +280,7 @@ svg text{pointer-events:none;user-select:none}
 .rt-tx{flex:1;min-width:0}
 .thumb.rt-cov{width:64px;height:64px;border-radius:14px;flex:0 0 auto}
 .rt b{display:block;font:800 16px/1.25 'Inter Tight'}
-.rt .meta{display:block;font:700 11.5px 'Inter';color:var(--ink-soft);margin-top:3px;text-transform:uppercase;letter-spacing:.04em}
+.rt .meta{display:block;font:600 12px 'Inter';color:var(--ink-soft);margin-top:3px}
 .rt.hero .meta{color:var(--accent-ink);opacity:.6}
 .rt .dsc{display:block;font:500 12.5px/1.45 'Inter';color:var(--ink-soft);margin-top:6px}
 .rt.hero .dsc{color:var(--accent-ink);opacity:.8}
