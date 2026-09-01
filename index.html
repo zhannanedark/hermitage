@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902011132">
+<link rel="stylesheet" href="styles.css?v=20260902012157">
 </head>
 <body>
 
@@ -59,7 +59,6 @@
   <div class="herebar" id="hereBar" hidden>
     <div class="hb-tx" onclick="if(here)selectRoom(here)">
       <b id="hbTitle"></b><span id="hbSub"></span>
-      <button class="hb-story" id="hbStory" hidden onclick="openWork(+this.dataset.i);event.stopPropagation()">★ Узнать</button>
     </div>
     <button class="hb-go" onclick="navScroll=0;navLastView=null;openNav('routes')">Куда пойти</button>
   </div>
@@ -106,10 +105,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902011132"></script>
-<script src="data/rooms.js?v=20260902011132"></script>
-<script src="data/works.js?v=20260902011132"></script>
-<script src="data/routes.js?v=20260902011132"></script>
+<script src="data/zones.js?v=20260902012157"></script>
+<script src="data/rooms.js?v=20260902012157"></script>
+<script src="data/works.js?v=20260902012157"></script>
+<script src="data/routes.js?v=20260902012157"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -355,7 +354,7 @@ function fitZone(z){
 }
 function showZoneBar(){
   const bar=document.getElementById('target');
-  if(!zoneFilter){bar.hidden=true;return}
+  if(!zoneFilter){bar.hidden=true;updateHereBar();return}
   const z=ZONES[zoneFilter];
   const cnt=ROOMS.filter(r=>r.z===zoneFilter).length;
   document.getElementById('tKind').textContent='коллекция';
@@ -364,9 +363,9 @@ function showZoneBar(){
   fitZone(zoneFilter);
   const b=document.getElementById('tRoute');
   b.style.display='';b.textContent='Пойдём';b.onclick=routeToZone;
-  bar.hidden=false;
+  bar.hidden=false;updateHereBar();
 }
-function clearZone(){zoneFilter=null;buildLegend();paint();document.getElementById('target').hidden=true}
+function clearZone(){zoneFilter=null;buildLegend();paint();document.getElementById('target').hidden=true;updateHereBar()}
 function routeToZone(){
   const rm=zoneRoom(zoneFilter);
   if(!rm){toast('Не нашла зал этой коллекции');return}
@@ -469,9 +468,12 @@ function stopCompass(){
 }
 function onCompass(e){
   let h=null;
-  if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
-  else if(e.absolute&&e.alpha!=null)h=360-e.alpha;
-  else if(e.alpha!=null)h=360-e.alpha;
+  if(e.webkitCompassHeading!=null){
+    /* iOS: настоящий компас; при плохой калибровке (accuracy<0 или >40°) не верим */
+    if(e.webkitCompassAccuracy!=null&&(e.webkitCompassAccuracy<0||e.webkitCompassAccuracy>40))return;
+    h=e.webkitCompassHeading;
+  }else if(e.absolute===true&&e.alpha!=null)h=360-e.alpha;
+  else return;   /* гироскопный alpha дрейфует по кругу — не используем вовсе */
   if(h==null||isNaN(h))return;
   compassRaw=h;
   /* сильное сглаживание по кратчайшей дуге */
@@ -479,28 +481,35 @@ function onCompass(e){
   else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.08+360)%360}
   if(orientMode==='compass'){rotTarget=-(compassSmooth-MAP_NORTH);startRotTick()}
   else if(here&&!window._coneRaf){   /* карта не крутится, но конус взгляда живёт */
-    window._coneRaf=requestAnimationFrame(()=>{window._coneRaf=null;paint()});
+    window._coneRaf=requestAnimationFrame(()=>{window._coneRaf=null;updateCone()});
   }
 }
-/* Поворот как в больших картах: мёртвая зона + выдержка + плавный доворот.
-   Покачивания при ходьбе (±12° и короче трети секунды) карту не трогают;
-   устойчивый поворот корпуса — карта плавно доворачивается. */
-let rotTarget=null,rotTicking=false,rotChasing=false,rotDevSince=null;
+/* лёгкое обновление одного конуса — без перерисовки всей карты */
+let _dotXY=null,_coneTh=null;
+function updateCone(){
+  if(!here||!visibleOn(here,FLOOR)||compassSmooth==null||!_dotXY||!coneEl)return;
+  const th=(compassSmooth-MAP_NORTH-90)*Math.PI/180;
+  if(_coneTh!=null&&Math.abs(((th-_coneTh+Math.PI*3)%(Math.PI*2))-Math.PI)<0.05)return;
+  _coneTh=th;
+  const[cx,cy]=_dotXY,R=40,ph=Math.PI/7;
+  coneEl.setAttribute('d',`M${cx},${cy} L${cx+R*Math.cos(th-ph)},${cy+R*Math.sin(th-ph)} A${R},${R} 0 0 1 ${cx+R*Math.cos(th+ph)},${cy+R*Math.sin(th+ph)} Z`);
+  coneEl.setAttribute('display','');
+}
+/* Поворот как в больших картах: непрерывное, но сильно задемпфированное
+   следование. Двойное сглаживание (датчик + доворот) съедает покачивания
+   при ходьбе, карта плавно плывёт за корпусом без рывков и ступенек. */
+let rotTarget=null,rotTicking=false,lastCompassAt=0;
 function startRotTick(){
+  lastCompassAt=performance.now();
   if(rotTicking)return;rotTicking=true;
   const step=()=>{
-    if(orientMode!=='compass'||rotTarget==null){rotTicking=false;rotChasing=false;rotDevSince=null;return}
+    if(orientMode!=='compass'||rotTarget==null){rotTicking=false;return}
     const d=((rotTarget-rot+540)%360)-180,ad=Math.abs(d);
-    if(!rotChasing){
-      if(ad>12){                                  /* мёртвая зона */
-        if(rotDevSince==null)rotDevSince=performance.now();
-        else if(performance.now()-rotDevSince>350)rotChasing=true;  /* поворот устойчивый */
-      }else rotDevSince=null;
-    }
-    if(rotChasing){
-      rot=rot+d*0.1;                              /* затухающий доворот */
-      if(ad<0.6){rot=rotTarget;rotChasing=false;rotDevSince=null}
-      applyView(false);updateRose();paint();
+    if(ad>1.2){
+      rot=rot+d*0.06;                             /* мягкое следование */
+      applyView(false);updateCone();
+    }else if(performance.now()-lastCompassAt>1500){
+      rotTicking=false;return;                    /* всё спокойно — не жжём батарею */
     }
     requestAnimationFrame(step);
   };
@@ -621,11 +630,12 @@ async function wiki(q,mode,exact){
 }
 function thumbHTML(w,cls){const i=(w.a||w.t).replace(/[«»]/g,'').trim()[0]||'★';
   return `<div class="thumb ${cls||''}"><span class="ph">${i}</span>
-    <img data-q="${w.q}" data-wt="${w.wt||''}" alt=""></div>`}
+    <img data-q="${w.q}" data-wt="${w.wt||''}"${w.img?` data-src="${w.img}"`:''} alt=""></div>`}
 /* картинки — только по точному названию статьи (data-wt).
    Нечёткий поиск отключён: он приносил случайные изображения
    («Малая столовая» → Столовая гора и т.п.). Нет точного — остаётся буква. */
 function hydrate(root){root.querySelectorAll('img[data-q]').forEach(async img=>{
+  if(img.dataset.src){img.onload=()=>img.classList.add('ok');img.src=img.dataset.src;return}
   if(!img.dataset.wt)return;
   const t=await wiki(img.dataset.wt,'img',true);
   if(t){img.onload=()=>img.classList.add('ok');img.src=t}})}
@@ -643,15 +653,14 @@ function updatePill(){
 /* всегда отвечает на «где я и что здесь», когда маршрут не активен */
 function updateHereBar(){
   const bar=document.getElementById('hereBar');if(!bar)return;
-  const show=here&&!followActive&&document.getElementById('resume').hidden;
+  const tg=document.getElementById('target');
+  const show=here&&!followActive&&document.getElementById('resume').hidden&&(!tg||tg.hidden);
   if(!show){bar.hidden=true;setTimeout(syncTools,0);return}
   const r=roomByN[here],ws=worksByRoom[here]||[];
   document.getElementById('hbTitle').textContent=(isStair(here)||isService(here))?r.name:('Зал '+here+' · '+r.name);
   document.getElementById('hbSub').textContent=ws.length
-    ? '★ '+ws.map(w=>w.t).join(', ')
+    ? 'Здесь: '+ws.map(w=>w.t).join(', ')
     : (r.pos?'переход между этажами':ZONES[r.z].n);
-  const hs=document.getElementById('hbStory');
-  if(hs){ if(ws.length){hs.dataset.i=WORKS.indexOf(ws[0]);hs.hidden=false} else hs.hidden=true }
   bar.hidden=false;setTimeout(syncTools,0);
 }
 function openWhereAmI(){
@@ -683,7 +692,7 @@ function waGo(){
 function setHereRoom(v){
   const r=roomByN[v];
   if(!r||r.pos){toast('Такого зала пока нет на схеме');return}
-  autoCompass();
+  autoCompass();stopGeoWatch();
   stopFollow();closeSheet();
   if(r.f!==FLOOR)setFloor(r.f);
   here=v;updatePill();
@@ -766,6 +775,13 @@ function startGeoWatch(){
   if(geoWatchId!=null||!navigator.geolocation)return;
   try{geoWatchId=navigator.geolocation.watchPosition(onGeoFix,()=>{},
     {enableHighAccuracy:true,maximumAge:5000})}catch(e){}
+}
+/* позиция определена — постоянный GPS больше не нужен (батарея, нагрев) */
+function stopGeoWatch(){
+  if(geoWatchId!=null&&navigator.geolocation){
+    try{navigator.geolocation.clearWatch(geoWatchId)}catch(e){}
+    geoWatchId=null;
+  }
 }
 function geoOptionsHTML(f){
   const opts=[1,2,3].map(fl=>({fl,r:nearestRoomAt(f.x,f.y,fl)})).filter(o=>o.r);
@@ -850,11 +866,13 @@ function focusRoom(n,label){
   document.getElementById('tRoute').style.display=here!==n?'':'none';
   const rb=document.getElementById('tRoute');rb.textContent='Пойдём';rb.onclick=targetRoute;
   document.getElementById('target').hidden=false;
+  updateHereBar();
   const e=roomEls[n];if(e){e.classList.remove('flash');void e.getBBox;e.classList.add('flash')}
   centerOn(n,1.5);
 }
 function hideTarget(){
   document.getElementById('target').hidden=true;
+  updateHereBar();
   selected=null;
   if(!followActive){targetRoom=null;routePath=[]}   /* идём по маршруту — не сбрасываем */
   if(zoneFilter){zoneFilter=null;buildLegend()}
@@ -885,7 +903,8 @@ function moveHere(n,confirmed){
 /* цена прохода: служебные, закрытые и временные залы обходим, если можно */
 function costOf(n){
   const r=roomByN[n];
-  if(!r||r.pos)return 1;                 /* лестницы — обычный проход */
+  if(!r)return 1;
+  if(r.pos)return 4;                     /* лестница «дорогая»: не ныряем между этажами без нужды */
   if(r.z==='closed')return 10;           /* закрытые залы обходим */
   if(r.z==='temp')return 2;              /* временные выставки — чуть дороже */
   return 1;                              /* сервисные галереи и кафе — нормальный путь */
@@ -1022,9 +1041,10 @@ followEl.addEventListener('touchend',e=>{
 function syncTools(){
   const rs=document.getElementById('resume');
   let h=12;
-  const hb=document.getElementById('hereBar');
+  const hb=document.getElementById('hereBar'),tg=document.getElementById('target');
   if(!followEl.hidden) h=followEl.classList.contains('away')?40:followEl.offsetHeight+14;
   else if(rs&&!rs.hidden) h=rs.offsetHeight+14;
+  else if(tg&&!tg.hidden) h=tg.offsetHeight+14;
   else if(hb&&!hb.hidden) h=hb.offsetHeight+14;
   toolsEl.style.bottom=`calc(${h}px + env(safe-area-inset-bottom))`;
 }
@@ -1338,7 +1358,7 @@ function renderStoryChip(){
   const ws=here?(worksByRoom[here]||[]):[];
   if(!ws.length||!followActive){c.hidden=true;return}
   const i=WORKS.indexOf(ws[0]);
-  c.innerHTML=`★ Узнать про «${ws[0].t}»<small>вы стоите рядом${ws.length>1?' · и ещё '+(ws.length-1):''}</small>`;
+  c.innerHTML=`Рядом с вами: «${ws[0].t}»<small>нажмите — расскажу историю${ws.length>1?' · и ещё '+(ws.length-1):''}</small>`;
   c.onclick=(e)=>{e.stopPropagation();openWork(i,!!tourStops)};
   c.hidden=false;
 }
@@ -1560,6 +1580,7 @@ function openWork(i,onTour){
     <div class="zdesc">${w.d}</div>
     <div class="acts">
       ${onTour?`<button class="prim" onclick="closeSheet();arrivalShown=false;nextStop()">Дальше по маршруту →</button>`
+        :here===w.room?`<button class="prim" onclick="closeSheet()">Вы уже здесь — смотрите</button>`
         :`<button class="prim" onclick="goToWork(${i})">Пойдём</button>
           <button onclick="toggleFav(${i},this);this.textContent=favs.has(${i})?'✓ в маршруте':'+ в маршрут'">${favs.has(i)?'✓ в маршруте':'+ в маршрут'}</button>`}
     </div>
