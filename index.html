@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902125040">
+<link rel="stylesheet" href="styles.css?v=20260902125916">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902125040"></script>
-<script src="data/rooms.js?v=20260902125040"></script>
-<script src="data/works.js?v=20260902125040"></script>
-<script src="data/routes.js?v=20260902125040"></script>
+<script src="data/zones.js?v=20260902125916"></script>
+<script src="data/rooms.js?v=20260902125916"></script>
+<script src="data/works.js?v=20260902125916"></script>
+<script src="data/routes.js?v=20260902125916"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -604,6 +604,13 @@ function toast(m){
   t.classList.add('show');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);
 }
+/* уведомление можно смахнуть вверх или закрыть тапом, не дожидаясь */
+{const t=document.getElementById('toast');let tY=null;
+ t.addEventListener('click',()=>t.classList.remove('show'));
+ t.addEventListener('touchstart',e=>{tY=e.touches[0].clientY},{passive:true});
+ t.addEventListener('touchmove',e=>{
+   if(tY!=null&&tY-e.touches[0].clientY>16){t.classList.remove('show');tY=null}},{passive:true});
+}
 function closeSheet(){sheet.classList.remove('open','tall');navTall=false;navScroll=0;navLastView=null;sheetBody.scrollTop=0;if(!targetRoom){selected=null;paint()}}
 document.addEventListener('pointerdown',e=>{
   if(sheet.classList.contains('open')&&!sheet.contains(e.target))closeSheet()},true);
@@ -979,6 +986,35 @@ function findRoute(a,b){
   }
   return null;
 }
+/* поиск пути, не покидая этаж f (лестницы — только как площадки этого этажа) */
+function findRouteOn(a,b,f){
+  const ok=n=>{const r=roomByN[n];return r.pos?!!r.pos[f]:r.f===f};
+  if(!ok(a)||!ok(b))return null;
+  if(a===b)return[a];
+  const dist={[a]:0},prev={[a]:null},seen={};
+  while(true){
+    let v=null,best=Infinity;
+    for(const k in dist){if(!seen[k]&&dist[k]<best){best=dist[k];v=+k}}
+    if(v===null)return null;
+    if(v===b){const p=[b];let c=b;while(prev[c]!==null){c=prev[c];p.unshift(c)}return p}
+    seen[v]=1;
+    for(const w of(adj[v]||[])){
+      if(!ok(w))continue;
+      const d=dist[v]+costOf(w);
+      if(dist[w]===undefined||d<dist[w]){dist[w]=d;prev[w]=v}
+    }
+  }
+}
+/* цель на нашем этаже — не ныряем на другой без крайней нужды */
+function findRouteSmart(a,b){
+  const p=findRoute(a,b);
+  const fa=floorOf(a),fb=floorOf(b);
+  if(p&&fa&&fb&&fa===fb&&p.some(n=>{const f=floorOf(n);return f&&f!==fa})){
+    const flat=findRouteOn(a,b,fa);
+    if(flat&&flat.length<=p.length+6)return flat;
+  }
+  return p;
+}
 function resumePending(p){
   if(typeof p==='number')routeTo(p);
   else if(p.my)startMyRoute();
@@ -1026,7 +1062,7 @@ function routeTo(n){
     toast(w?('Вы уже здесь · '+w.t):'Вы уже в этом зале');
     focusRoom(n);return;
   }
-  const p=findRoute(here,n);
+  const p=findRouteSmart(here,n);
   if(!p){toast('Не нашла путь — попробуйте другой зал');return}
   if(p.length<2){toast('Вы уже в этом зале');return}
   closeSheet();
@@ -1512,7 +1548,7 @@ function toggleFav(i,btn){
 const _dcache={};
 function walkLen(a,b){
   const k=a+'_'+b;
-  if(_dcache[k]===undefined){const p=findRoute(a,b);_dcache[k]=p?p.length-1:9999}
+  if(_dcache[k]===undefined){const p=findRouteSmart(a,b);_dcache[k]=p?p.length-1:9999}
   return _dcache[k];
 }
 function orderStops(start,pts){
