@@ -305,6 +305,10 @@ svg text{pointer-events:none;user-select:none}
   transition:.25s;z-index:50;pointer-events:none;text-align:left;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .toast.show{opacity:1;transform:translateY(0)}
+/* панели поднимаются снизу, а не возникают рывком */
+@keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.target:not([hidden]),.herebar:not([hidden]),.resume:not([hidden]){animation:rise .22s cubic-bezier(.3,.9,.35,1)}
+.follow:not([hidden]){animation:rise .26s cubic-bezier(.3,.9,.35,1)}
 
 /* мгновенный отклик на нажатие: любая кнопка заметно реагирует под пальцем */
 button{transition:transform .1s ease,opacity .1s ease}
