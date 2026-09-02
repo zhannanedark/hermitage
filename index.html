@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902130711">
+<link rel="stylesheet" href="styles.css?v=20260902160502">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902130711"></script>
-<script src="data/rooms.js?v=20260902130711"></script>
-<script src="data/works.js?v=20260902130711"></script>
-<script src="data/routes.js?v=20260902130711"></script>
+<script src="data/zones.js?v=20260902160502"></script>
+<script src="data/rooms.js?v=20260902160502"></script>
+<script src="data/works.js?v=20260902160502"></script>
+<script src="data/routes.js?v=20260902160502"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -449,21 +449,22 @@ function fitRoute(){
 /* Ориентация карты: по маршруту → по компасу → фиксированно.
    MAP_NORTH — азимут, которому соответствует «вверх» на нашей схеме
    (сторона Невы). Подбирается один раз на месте калибровкой. */
-let orientMode='route', MAP_NORTH=0, compassRaw=null, compassSmooth=null, compassAt=0, hdBuf=[];
+/* по умолчанию карта неподвижна (Нева сверху); вращение — осознанный режим */
+let orientMode='fixed', MAP_NORTH=0, compassRaw=null, compassSmooth=null, compassAt=0, hdBuf=[];
 function toggleTilt(){
   tilt=!tilt;document.getElementById('btnTilt').classList.toggle('on',tilt);applyView();
 }
 let compassTried=false,compassEverOn=false;
 async function autoCompass(){
-  if(compassTried||orientMode==='compass')return;
+  if(compassTried)return;
   compassTried=true;
   /* объясняем незнакомый системный вопрос до того, как он появится */
   if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission)
-    toast('iPhone спросит про «Движение и ориентацию» — это чтобы карта крутилась за вами, а точка шла сама');
+    toast('iPhone спросит про «Движение и ориентацию» — чтобы показывать, куда вы смотрите, и вести точку по шагам');
   const ok=await startCompass();
-  if(ok){orientMode='compass';compassEverOn=true;renderLocateBtn();updateRose();paint();
-    const auto=await enableAutoPos();
-    toast('Карта крутится за телефоном')}
+  if(ok){compassEverOn=true;renderLocateBtn();updateRose();paint();
+    await enableAutoPos();
+    toast('Стрелка у вашей точки показывает, куда вы смотрите')}
 }
 async function startCompass(){
   try{
@@ -748,18 +749,24 @@ function renderLocateBtn(){
    попутно, если доступен; выключается поворотом карты двумя пальцами. */
 async function locateMe(){
   if(!here){openWhereAmI();return}
+  /* режим вращения включён — тап возвращает неподвижную карту */
+  if(orientMode==='compass'){
+    orientMode='fixed';rot=0;applyView();updateRose();
+    renderLocateBtn();paint();toast('Карта зафиксирована: Нева сверху');return;
+  }
   const r=roomByN[here],f=r.pos?(r.pos[FLOOR]?FLOOR:+Object.keys(r.pos)[0]):r.f;
   if(f!==FLOOR)setFloor(f);
   centerOn(here,Math.max(scale,1.6));
-  locCentered=true;renderLocateBtn();
-  if(orientMode!=='compass'){
+  /* второй тап подряд — осознанно включаем вращение карты */
+  if(locCentered){
     const ok=await startCompass();
-    if(ok){
-      orientMode='compass';compassEverOn=true;
-      renderLocateBtn();updateRose();paint();
-      enableAutoPos();
-    }
+    if(!ok){toast('Компас недоступен на этом устройстве');return}
+    orientMode='compass';compassEverOn=true;
+    renderLocateBtn();updateRose();paint();enableAutoPos();
+    toast('Карта поворачивается за вами · ещё тап — снова Нева сверху');
+    return;
   }
+  locCentered=true;renderLocateBtn();
 }
 function startAtEntrance(){
   hideWelcome();stopFollow();autoCompass();stopGeoWatch();here=2;
@@ -1473,13 +1480,14 @@ function renderStoryChip(){
   c.hidden=false;
 }
 async function trkTap(){
-  const live = autoPos && orientMode==='compass' && compassSmooth!=null;
+  const live = autoPos && compassSmooth!=null;
   if(live){autoPos=false;renderTrk();toast('Слежение выключено — отмечайтесь кнопкой «Я здесь»');return}
   autoPos=true;
-  if(orientMode!=='compass'){
+  /* слежению нужны датчики, но карту оно не крутит */
+  if(compassSmooth==null){
     const ok=await startCompass();
     if(!ok){renderTrk();toast('Компас недоступен на этом устройстве');return}
-    orientMode='compass';compassEverOn=true;renderLocateBtn();
+    compassEverOn=true;
   }
   await enableAutoPos();resetEst();renderTrk();paint();
   toast('Слежу за вами');
@@ -1491,6 +1499,18 @@ function renderTrk(){
 
 /* ================== КУДА ПОЙТИ ================== */
 let navView='routes',navScroll=0,navLastView=null,navScrollBound=false,navTall=false;
+/* свайп влево-вправо листает вкладки Маршруты · Коллекции · Шедевры */
+{let nvX=null,nvY=null;
+ sheetBody.addEventListener('touchstart',e=>{nvX=e.touches[0].clientX;nvY=e.touches[0].clientY},{passive:true});
+ sheetBody.addEventListener('touchend',e=>{
+   if(nvX==null||!sheet.classList.contains('fixed')){nvX=null;return}
+   const dx=e.changedTouches[0].clientX-nvX,dy=e.changedTouches[0].clientY-nvY;nvX=null;
+   if(Math.abs(dx)>60&&Math.abs(dy)<45){
+     const order=['routes','cols','works'],i=order.indexOf(navView),j=dx<0?i+1:i-1;
+     if(j>=0&&j<order.length){navScroll=0;openNav(order[j])}
+   }
+ },{passive:true});
+}
 /* «что за вещь» → где такое есть. Отвечает на запросы вроде «саркофаг», «доспех», «ваза» */
 const TOPICS=[
  {k:['саркофаг','мумия','мумии','гробниц','египет'],t:'Саркофаги и мумии',rooms:[100,130,115],
