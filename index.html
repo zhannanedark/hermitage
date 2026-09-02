@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902112249">
+<link rel="stylesheet" href="styles.css?v=20260902112508">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902112249"></script>
-<script src="data/rooms.js?v=20260902112249"></script>
-<script src="data/works.js?v=20260902112249"></script>
-<script src="data/routes.js?v=20260902112249"></script>
+<script src="data/zones.js?v=20260902112508"></script>
+<script src="data/rooms.js?v=20260902112508"></script>
+<script src="data/works.js?v=20260902112508"></script>
+<script src="data/routes.js?v=20260902112508"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -137,7 +137,7 @@ svg.style.overflow='visible';   /* при повороте карты подпи
 stage.appendChild(svg);
 const g=document.createElementNS(NS,'g');svg.appendChild(g);
 g.style.transformOrigin='0 0';
-let roomEls={},routeEl,coneEl,hereDot,herePulse,geoBlob,meGlow,labelEls=[],floorTagEls=[];
+let roomEls={},routeEl,ghostEl,coneEl,hereDot,herePulse,geoBlob,meGlow,labelEls=[],floorTagEls=[];
 function el(t,a,txt){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);
   if(txt!=null)e.textContent=txt;return e}
 function ctr(n){const r=rectOf(n,FLOOR);return r?[r.x+r.w/2,r.y+r.h/2]:null}
@@ -182,11 +182,15 @@ function drawFloorTags(){
     const f=floorOf(other)||(roomByN[other].pos?FLOOR:null);
     if(!visibleOn(node,FLOOR))continue;
     const r=rectOf(node,FLOOR),cx=r.x+r.w/2,cy=r.y+r.h/2;
-    const up=(f||0)>FLOOR;
+    /* уходим с этажа — «↓ на 1 этаж»; возвращаемся — «↑ с 1 этажа» */
+    const leaving=av&&!bv, up=(f||0)>FLOOR;
+    const label=leaving?((up?'↑ на ':'↓ на ')+(f||'')+' этаж')
+                       :((f||0)<FLOOR?'↑ с ':'↓ с ')+(f||'')+' этажа';
+    const w=label.length*5.6+14;
     const g1=el('g',{});
-    g1.appendChild(el('rect',{x:cx-26,y:cy-30,width:52,height:20,rx:10,fill:'var(--ink)'}));
+    g1.appendChild(el('rect',{x:cx-w/2,y:cy-30,width:w,height:20,rx:10,fill:'var(--ink)'}));
     g1.appendChild(el('text',{x:cx,y:cy-16,'text-anchor':'middle',
-      style:"font:700 10px Inter;fill:#fff"},(up?'↑ ':'↓ ')+(f||'')+' этаж'));
+      style:"font:700 10px Inter;fill:#fff"},label));
     g.appendChild(g1);floorTagEls.push(g1);
   }
 }
@@ -242,6 +246,7 @@ function buildFloor(){
     g.appendChild(el('text',{x:450,y:594,'text-anchor':'middle',
       style:"font:700 10px Inter;fill:#9A9A94;letter-spacing:.22em"},'ДВОРЦОВАЯ ПЛОЩАДЬ'));
   }
+  ghostEl=el('path',{class:'routeghost',d:''});g.appendChild(ghostEl);
   routeEl=el('path',{class:'routeline',d:''});g.appendChild(routeEl);
   floorTagEls=[];
   coneEl=el('path',{class:'cone',d:'',display:'none'});g.appendChild(coneEl);
@@ -266,6 +271,18 @@ function paint(){
     e.setAttribute('fill-opacity',here===n?.34:selected===n?.30:routePath.includes(n)?.24:.16);
   });
   routeEl.setAttribute('d',routePath.length>1?routeD():'');
+  /* кусок пути по другому этажу: лёгкий пунктир между лестницами, чтобы не было «телепорта» */
+  let gd='';
+  if(routePath.length>1)for(let i=0;i<routePath.length;i++){
+    if(!visibleOn(routePath[i],FLOOR))continue;
+    let j=i+1,gap=false;
+    while(j<routePath.length&&!visibleOn(routePath[j],FLOOR)){gap=true;j++}
+    if(gap&&j<routePath.length){
+      const a=ctr(routePath[i]),b=ctr(routePath[j]);
+      gd+=`M${a[0]},${a[1]} L${b[0]},${b[1]} `;i=j-1;
+    }
+  }
+  ghostEl.setAttribute('d',gd.trim());
   drawFloorTags();
   /* «вы здесь»: подсвеченный зал + точка с пульсом + конус направления */
   const show=here&&visibleOn(here,FLOOR);
@@ -584,7 +601,7 @@ function toast(m){
   t.classList.add('show');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);
 }
-function closeSheet(){sheet.classList.remove('open','tall');navTall=false;if(!targetRoom){selected=null;paint()}}
+function closeSheet(){sheet.classList.remove('open','tall');navTall=false;navScroll=0;navLastView=null;sheetBody.scrollTop=0;if(!targetRoom){selected=null;paint()}}
 document.addEventListener('pointerdown',e=>{
   if(sheet.classList.contains('open')&&!sheet.contains(e.target))closeSheet()},true);
 let shY=null,shD=0;
@@ -676,7 +693,7 @@ function openWhereAmI(){
    <button class="w-sec" onclick="startAtEntrance()">Я у главного входа</button>
    <button class="w-sec" onclick="closeSheet();tryGeo()">Попробовать геолокацию</button>
    <div class="empty">Или закройте это окно и нажмите нужный зал прямо на карте.</div>`;
-  sheet.classList.add('open');
+  sheetBody.scrollTop=0;sheet.classList.add('open');
   setTimeout(()=>{const i=document.getElementById('waIn');
     if(i){i.focus();i.addEventListener('keydown',e=>{if(e.key==='Enter')waGo()})}},300);
 }
@@ -797,7 +814,7 @@ function showGeoSheet(f){
      <button onclick="waGo()">Готово</button>
    </div>`;
   sheet.classList.remove('fixed');document.getElementById('sheetSticky').hidden=true;
-  sheet.classList.add('open');
+  sheetBody.scrollTop=0;sheet.classList.add('open');
 }
 function tryGeo(){
   if(!navigator.geolocation){toast('Геолокация недоступна');return}
@@ -829,7 +846,7 @@ function selectRoom(n){
         <button onclick="closeSheet()">Закрыть</button>
         ${other?`<button class="prim" onclick="stairArrived(${n},${other})">Я поднялась на ${other} этаж</button>`:''}
       </div>`;
-    sheet.classList.add('open');return;
+    sheetBody.scrollTop=0;sheet.classList.add('open');return;
   }
   selected=n;paint();
   const z=ZONES[r.z],ws=worksByRoom[n]||[];
@@ -850,7 +867,7 @@ function selectRoom(n){
        :(here!==n?`<button class="prim" onclick="routeOrAsk(${n})">Пойдём</button>`:'')}
      <button onclick="moveHere(${n})">Я здесь</button>
    </div>`;
-  sheet.classList.add('open');hydrate(sheetBody);
+  sheetBody.scrollTop=0;sheet.classList.add('open');hydrate(sheetBody);
 }
 /* «я поднялась по лестнице»: не теряем активный маршрут и слежение */
 function stairArrived(n,other){
@@ -913,7 +930,7 @@ function moveHere(n,confirmed){
       <div class="empty" style="margin-top:2px">${far} Номер зала написан на табличке у входа.</div>
       <div class="acts"><button onclick="closeSheet()">Отмена</button>
       <button class="prim" onclick="moveHere(${n},true)">Да, я здесь</button></div>`;
-    sheet.classList.add('open');return;
+    sheetBody.scrollTop=0;sheet.classList.add('open');return;
   }
   here=n;closeSheet();updatePill();locCentered=false;renderLocateBtn();stopGeoWatch();
   const rr=roomByN[n];
@@ -973,7 +990,7 @@ function routeOrAsk(n){
         <button class="w-sec" onclick="replaceGoal(${n})">Сделать новой целью</button>
         <button class="w-ghost" onclick="closeSheet()">Отмена</button>
       </div>`;
-    sheet.classList.remove('fixed');sheet.classList.add('open');return;
+    sheet.classList.remove('fixed');sheetBody.scrollTop=0;sheet.classList.add('open');return;
   }
   routeTo(n);
 }
@@ -991,7 +1008,7 @@ function offerReturn(){
       <div class="empty" style="margin-top:2px">Вы отвлеклись от «${b.work!=null?WORKS[b.work].t:roomByN[b.room].name}».</div>
       <div class="acts"><button onclick="closeSheet()">Останусь здесь</button>
       <button class="prim" onclick="goalWork=${b.work==null?'null':b.work};closeSheet();routeTo(${b.room})">Идём дальше</button></div>`;
-    sheet.classList.remove('fixed');sheet.classList.add('open');
+    sheet.classList.remove('fixed');sheetBody.scrollTop=0;sheet.classList.add('open');
   },900);
 }
 function routeTo(n){
@@ -1593,7 +1610,7 @@ function openNav(view,q){
       ;
     body=body.replace('<input class="nav-search"','<div class="hint">Отмечайте кнопкой «в путь» всё, что хотите увидеть, — соберу из этого один маршрут в удобном порядке.</div><input class="nav-search"');
   }
-  sheetBody.innerHTML=body;sheet.classList.add('open','fixed');sheet.classList.toggle('tall',navTall);
+  sheetBody.innerHTML=body;sheetBody.scrollTop=0;sheet.classList.add('open','fixed');sheet.classList.toggle('tall',navTall);
   hydrate(sheetBody);syncSticky();
   sheetBody.scrollTop=navScroll||0;
   if(!navScrollBound){navScrollBound=true;
@@ -1636,7 +1653,7 @@ function openWork(i,onTour){
     ${authorLinkable(w)?`<button class="more" style="margin-left:14px" data-q="${(w.a||'').split(',')[0]}" data-exact="0" onclick="moreInfo(this)">Об авторе</button>`:''}
     <button class="more" style="margin-left:14px" onclick="focusWork(${i})">На карте</button>`;
   document.getElementById('sheetSticky').hidden=true;
-  sheet.classList.add('open');hydrate(sheetBody);
+  sheetBody.scrollTop=0;sheet.classList.add('open');hydrate(sheetBody);
 }
 function openTourList(){
   if(!tourStops)return;
@@ -1652,7 +1669,7 @@ function openTourList(){
        ${i!==tourIdx?`<button onclick="jumpStop(${i})">${i<tourIdx?'вернуться':'сразу сюда'}</button>`:''}
      </div>`}).join('');
   document.getElementById('sheetSticky').hidden=true;
-  sheet.classList.add('open');
+  sheetBody.scrollTop=0;sheet.classList.add('open');
 }
 function finishTour(n){
   sheet.classList.remove('fixed');
@@ -1665,7 +1682,7 @@ function finishTour(n){
    <div class="acts"><button onclick="closeSheet()">Закрыть</button>
    <button class="prim" onclick="openNav('routes')">Другой маршрут</button></div>`;
   document.getElementById('sheetSticky').hidden=true;
-  sheet.classList.add('open');
+  sheetBody.scrollTop=0;sheet.classList.add('open');
 }
 function jumpStop(i){
   if(!tourStops)return;
