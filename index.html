@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902111408">
+<link rel="stylesheet" href="styles.css?v=20260902112249">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902111408"></script>
-<script src="data/rooms.js?v=20260902111408"></script>
-<script src="data/works.js?v=20260902111408"></script>
-<script src="data/routes.js?v=20260902111408"></script>
+<script src="data/zones.js?v=20260902112249"></script>
+<script src="data/rooms.js?v=20260902112249"></script>
+<script src="data/works.js?v=20260902112249"></script>
+<script src="data/routes.js?v=20260902112249"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -1107,8 +1107,14 @@ function startFollow(){
 function collapseFollow(){
   if(!followActive)return;
   followEl.hidden=true;
-  const cur=roomByN[here],goal=roomByN[routePath[routePath.length-1]];
-  document.getElementById('rsTx').textContent=goal&&goal!==cur?('Идём в: '+goal.name):('Вы в зале '+here);
+  /* чип называет цель так же, как вы её выбирали: маршрут, картина или зал */
+  const goalN=routePath[routePath.length-1];
+  const wt=goalWork!=null?WORKS[goalWork].t:'';
+  const label=tourStops?(tourName||'Маршрут')
+    :goalWork!=null?('К '+(/^«/.test(wt)?wt:'«'+wt+'»'))
+    :isService(goalN)?('Идём: '+shortName(goalN))
+    :('Идём в зал '+goalN);
+  document.getElementById('rsTx').textContent=label;
   document.getElementById('resume').hidden=false;
   setTimeout(syncTools,0);
 }
