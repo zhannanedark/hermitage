@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902113554">
+<link rel="stylesheet" href="styles.css?v=20260902113853">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902113554"></script>
-<script src="data/rooms.js?v=20260902113554"></script>
-<script src="data/works.js?v=20260902113554"></script>
-<script src="data/routes.js?v=20260902113554"></script>
+<script src="data/zones.js?v=20260902113853"></script>
+<script src="data/rooms.js?v=20260902113853"></script>
+<script src="data/works.js?v=20260902113853"></script>
+<script src="data/routes.js?v=20260902113853"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -1189,21 +1189,23 @@ function updateFollow(){
     const nn=routePath[ni],nx=roomByN[nn];
     const left=routePath.length-1-followIdx;
     const lastStep=(left===1);
-    /* проходные кафе и магазины — не остановки, а «пройдите насквозь» */
-    goTo.textContent=isStair(nn)?('Идите на '+nx.name)
-      :isService(nn)?(lastStep?('Вам сюда: '+shortName(nn)):('Пройдите через '+shortName(nn)))
-      :('Идите в зал '+nn);
-    /* не дублируем название: если следующий зал и есть цель — пишем его один раз */
-    const goalLabel = goalWork!=null ? WORKS[goalWork].t : (goal?goal.name:'');
-    /* ориентир по сторонам здания + честная оценка времени */
+    /* ориентир по сторонам здания — в самой инструкции, где ему и место */
     let dir='';
     if(FLOOR!==3&&visibleOn(here,FLOOR)&&visibleOn(nn,FLOOR)){
       const[ax,ay]=ctr(here),[bx,by]=ctr(nn);
-      if(Math.abs(by-ay)>Math.abs(bx-ax)*1.4)dir=by<ay?' · к Неве':' · к Дворцовой площади';
+      if(Math.abs(by-ay)>Math.abs(bx-ax)*1.4)dir=by<ay?' · к Неве':' · к Дворцовой';
     }
+    /* проходные кафе и магазины — не остановки, а «пройдите насквозь» */
+    goTo.textContent=isStair(nn)?('Идите на '+nx.name)
+      :isService(nn)?(lastStep?('Вам сюда: '+shortName(nn)):('Пройдите через '+shortName(nn)))
+      :('Идите в зал '+nn+dir);
+    /* не дублируем название: если следующий зал и есть цель — пишем его один раз */
+    const goalLabel = goalWork!=null ? WORKS[goalWork].t : (goal?goal.name:'');
     const minsLeft=Math.max(1,Math.round(left*0.7));
+    /* нижняя строка короткая и не режется: имя зала — только если его нет в инструкции */
+    const named=isStair(nn)||isService(nn);
     meta.textContent = lastStep ? (isStair(nn)?'последний переход':'здесь и есть цель')
-                                : `${nx.name} · осталось ${left} ${left<5?'зала':'залов'} · ~${minsLeft} мин${dir}`;
+      : `${named?'':nx.name.split('·')[0].trim()+' · '}осталось ${left} ${left<5?'зала':'залов'} · ~${minsLeft} мин`;
     document.getElementById('fGoal').textContent = tourStops
       ? `${tourName||'Маршрут'} · ${tourIdx+1} из ${tourStops.length}: ${goalLabel}`
       : `Идём к: ${goalLabel}`;
