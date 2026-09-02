@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902110829">
+<link rel="stylesheet" href="styles.css?v=20260902111408">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902110829"></script>
-<script src="data/rooms.js?v=20260902110829"></script>
-<script src="data/works.js?v=20260902110829"></script>
-<script src="data/routes.js?v=20260902110829"></script>
+<script src="data/zones.js?v=20260902111408"></script>
+<script src="data/rooms.js?v=20260902111408"></script>
+<script src="data/works.js?v=20260902111408"></script>
+<script src="data/routes.js?v=20260902111408"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -844,6 +844,7 @@ function selectRoom(n){
        <span class="desc">${w.d}</span></div></div>`).join('')}</div>`:''}
    ${nb.length?`<div class="sec">Соседние залы</div><div class="nb">${nb.map(m=>{
      const rr=roomByN[m];return `<button onclick="selectRoom(${m})"><span class="dot" style="background:${ZONES[rr.z].c}"></span>${m} · ${rr.name.split('·')[0].trim().slice(0,22)}</button>`}).join('')}</div>`:''}
+   <button class="more" onclick="shareRoom(${n})">Поделиться залом</button>
    <div class="acts">
      ${r.z==='closed'?`<button disabled style="opacity:.45">Закрыт для посетителей</button>`
        :(here!==n?`<button class="prim" onclick="routeOrAsk(${n})">Пойдём</button>`:'')}
@@ -895,6 +896,15 @@ function hideTarget(){
   paint();
 }
 function targetRoute(){if(targetRoom)routeOrAsk(targetRoom)}
+/* «я у Рембрандта, приходи»: ссылка открывает карту сразу на этом зале */
+function shareRoom(n){
+  const r=roomByN[n];if(!r)return;
+  const url=location.origin+location.pathname+'#z'+n;
+  const txt=(isService(n)?shortName(n):'Зал '+n+' — '+r.name.split('·')[0].trim())+' · '+r.f+' этаж Эрмитажа';
+  if(navigator.share)navigator.share({title:'Эрмитаж · карта залов',text:txt,url}).catch(()=>{});
+  else if(navigator.clipboard)navigator.clipboard.writeText(txt+' '+url)
+    .then(()=>toast('Ссылка скопирована — отправьте её спутнику'),()=>{});
+}
 function moveHere(n,confirmed){
   if(!confirmed&&here&&n!==here&&!(adj[here]||[]).includes(n)){
     const a=roomByN[here],b=roomByN[n];
@@ -1746,6 +1756,26 @@ function goCollection(i){
 }
 
 buildFloor();buildLegend();updatePill();applyView(false);renderLocateBtn();syncTools();renderTrk();
+/* офлайн-кэш: карта живёт и там, где стены глушат сеть */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if(!navigator.serviceWorker.controller){
+    /* первый визит: как только воркер взял страницу, прогреваем кэш статики */
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      fetch(location.pathname).catch(()=>{});
+      document.querySelectorAll('script[src],link[rel="stylesheet"]').forEach(s=>{
+        const u=s.src||s.href;
+        if(u&&u.startsWith(location.origin))fetch(u).catch(()=>{});
+      });
+    },{once:true});
+  }
+}
+/* пришли по ссылке «поделиться залом» — сразу показываем этот зал */
+const _mz=location.hash.match(/^#z(\d+)$/);
+if(_mz&&roomByN[+_mz[1]]&&!roomByN[+_mz[1]].pos){
+  hideWelcome();focusRoom(+_mz[1]);
+  toast('Вас ждут здесь — нажмите «Пойдём», и я доведу');
+}
 </script>
 </body>
 </html>
