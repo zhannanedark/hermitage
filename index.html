@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902160502">
+<link rel="stylesheet" href="styles.css?v=20260902203058">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902160502"></script>
-<script src="data/rooms.js?v=20260902160502"></script>
-<script src="data/works.js?v=20260902160502"></script>
-<script src="data/routes.js?v=20260902160502"></script>
+<script src="data/zones.js?v=20260902203058"></script>
+<script src="data/rooms.js?v=20260902203058"></script>
+<script src="data/works.js?v=20260902203058"></script>
+<script src="data/routes.js?v=20260902203058"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -635,7 +635,8 @@ sheet.addEventListener('touchend',e=>{
   else if(sheet.classList.contains('fixed')&&dy<-40){navTall=true;sheet.classList.add('tall')}
   shY=null;shD=0});
 document.getElementById('welcome').addEventListener('click',e=>{if(e.target===e.currentTarget)hideWelcome()});
-function hideWelcome(){document.getElementById('welcome').style.display='none';startGeoWatch()}
+/* геолокацию не навязываем на входе: её спросит только «Уже гуляю» / «Где я?» */
+function hideWelcome(){document.getElementById('welcome').style.display='none'}
 
 /* превью и справка */
 const thumbCache={},extCache={};
