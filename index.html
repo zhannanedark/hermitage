@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902125916">
+<link rel="stylesheet" href="styles.css?v=20260902130711">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902125916"></script>
-<script src="data/rooms.js?v=20260902125916"></script>
-<script src="data/works.js?v=20260902125916"></script>
-<script src="data/routes.js?v=20260902125916"></script>
+<script src="data/zones.js?v=20260902130711"></script>
+<script src="data/rooms.js?v=20260902130711"></script>
+<script src="data/works.js?v=20260902130711"></script>
+<script src="data/routes.js?v=20260902130711"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -449,7 +449,7 @@ function fitRoute(){
 /* Ориентация карты: по маршруту → по компасу → фиксированно.
    MAP_NORTH — азимут, которому соответствует «вверх» на нашей схеме
    (сторона Невы). Подбирается один раз на месте калибровкой. */
-let orientMode='route', MAP_NORTH=0, compassRaw=null, compassSmooth=null, compassAt=0;
+let orientMode='route', MAP_NORTH=0, compassRaw=null, compassSmooth=null, compassAt=0, hdBuf=[];
 function toggleTilt(){
   tilt=!tilt;document.getElementById('btnTilt').classList.toggle('on',tilt);applyView();
 }
@@ -494,7 +494,14 @@ function onCompass(e){
   /* сильное сглаживание по кратчайшей дуге */
   if(compassSmooth==null)compassSmooth=h;
   else{let d=((h-compassSmooth+540)%360)-180;compassSmooth=(compassSmooth+d*0.08+360)%360}
-  if(orientMode==='compass'){rotTarget=-(compassSmooth-MAP_NORTH);startRotTick()}
+  /* фильтр устойчивости: при ходьбе телефон качается — карту это не касается.
+     Поворачиваем цель, только если направление держится ~секунду в узком коридоре. */
+  hdBuf.push({h:compassSmooth,t:performance.now()});
+  while(hdBuf.length&&performance.now()-hdBuf[0].t>900)hdBuf.shift();
+  let mn=1e9,mx=-1e9;const ref=hdBuf[0].h;
+  for(const o of hdBuf){const d=((o.h-ref+540)%360)-180;if(d<mn)mn=d;if(d>mx)mx=d}
+  const steady=(mx-mn)<12;
+  if(orientMode==='compass'&&steady){rotTarget=-(compassSmooth-MAP_NORTH);startRotTick()}
   else if(here&&!window._coneRaf){   /* карта не крутится, но конус взгляда живёт */
     window._coneRaf=requestAnimationFrame(()=>{window._coneRaf=null;updateCone()});
   }

@@ -100,7 +100,8 @@ svg text{pointer-events:none;user-select:none}
 .t-kind{display:block;font:500 12px 'Inter';color:var(--ink-soft);margin-bottom:2px}
 .target b{display:block;font:700 15px/1.3 'Inter Tight'}
 .target span{font:500 12px 'Inter';color:var(--ink-soft)}
-.target button{border:0;background:var(--surface);border-radius:999px;height:34px;padding:0 13px;
+/* кнопки предпросмотра — того же роста, что и на панели ведения (40px) */
+.target button{border:0;background:var(--surface);border-radius:999px;height:40px;padding:0 15px;
   font:600 13px 'Inter';color:var(--ink);flex:0 0 auto}
 .target #tRoute{background:var(--accent);color:var(--accent-ink)}
 .herebar{position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;
