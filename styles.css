@@ -68,14 +68,16 @@ svg text{pointer-events:none;user-select:none}
 .bld{font:700 10px 'Inter';fill:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase}
 .stair-i{stroke:var(--ink);stroke-width:1.6;fill:none;opacity:.7;stroke-linecap:round}
 .here{fill:var(--ink);stroke:var(--accent);stroke-width:3;transition:cx .35s linear,cy .35s linear}
-.here-pulse{fill:var(--accent);opacity:.55;animation:pu 1.7s ease-out infinite;transition:cx .35s linear,cy .35s linear}
-@keyframes pu{0%{r:7}70%{r:17;opacity:0}100%{r:17;opacity:0}}
+/* пульс через transform — композитится на GPU, а не перерисовывает карту */
+.here-pulse{fill:var(--accent);opacity:.55;transform-box:fill-box;transform-origin:center;
+  animation:pu 1.8s ease-out infinite;transition:cx .35s linear,cy .35s linear}
+@keyframes pu{0%{transform:scale(1);opacity:.55}70%{transform:scale(2.4);opacity:0}100%{transform:scale(2.4);opacity:0}}
 .cone{fill:var(--ink);fill-opacity:.14}
+/* статичный пунктир: «бегущие точки» грели телефон постоянной перерисовкой */
 .routeline{fill:none;stroke:var(--ink);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;
-  stroke-dasharray:1 9;animation:da 1.2s linear infinite}
+  stroke-dasharray:1 9}
 /* участок пути, идущий по другому этажу */
 .routeghost{fill:none;stroke:var(--ink-soft);stroke-width:2;stroke-dasharray:3 7;opacity:.55}
-@keyframes da{to{stroke-dashoffset:-20}}
 .geo-blob{fill:var(--neva);fill-opacity:.10;stroke:var(--neva);stroke-dasharray:3 3;stroke-opacity:.5}
 .tools{position:absolute;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));display:flex;
   flex-direction:column;gap:8px;align-items:center;transition:bottom .25s cubic-bezier(.3,.9,.35,1)}
@@ -291,8 +293,15 @@ svg text{pointer-events:none;user-select:none}
 .quick::-webkit-scrollbar{display:none}
 .quick button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:999px;
   padding:8px 13px;font:600 12.5px 'Inter';color:var(--ink)}
-.mybtn{width:100%;border:0;background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;
-  text-align:left;font:600 12.5px 'Inter';margin:2px 0 10px}
+.myrow{display:flex;gap:8px;margin:2px 0 10px}
+.myrow[hidden]{display:none}
+.my-x{flex:0 0 48px;border:0;background:var(--surface);border-radius:16px;color:var(--ink-soft);
+  font-size:18px;display:flex;align-items:center;justify-content:center}
+.mybtn{flex:1;min-width:0;border:0;background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;
+  text-align:left;font:600 12.5px 'Inter'}
+.sticky .st-row{display:flex;gap:8px}
+.sticky .st-row button:first-child{flex:1}
+.sticky .st-x{flex:0 0 50px;background:var(--surface);color:var(--ink);font-size:18px}
 .mybtn b{display:block;font:800 16px 'Inter Tight';margin-bottom:2px}
 .thumb{position:relative;width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--surface);flex:0 0 auto}
 .thumb.big{width:100%;height:260px;border-radius:18px}

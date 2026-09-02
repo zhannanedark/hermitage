@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902112508">
+<link rel="stylesheet" href="styles.css?v=20260902112832">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902112508"></script>
-<script src="data/rooms.js?v=20260902112508"></script>
-<script src="data/works.js?v=20260902112508"></script>
-<script src="data/routes.js?v=20260902112508"></script>
+<script src="data/zones.js?v=20260902112832"></script>
+<script src="data/rooms.js?v=20260902112832"></script>
+<script src="data/works.js?v=20260902112832"></script>
+<script src="data/routes.js?v=20260902112832"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -784,15 +784,19 @@ function onGeoFix(p){
   const busy=sheet.classList.contains('open');   /* не выдёргиваем открытую карточку из рук */
   if(!here&&!geoSuggested&&!welcomeUp&&!busy&&f.ac<=80&&f.inside){
     geoSuggested=true;showGeoSheet(f);
+    stopGeoWatch();   /* предложение показано — GPS больше не жжём */
   }
 }
 function startGeoWatch(){
   if(geoWatchId!=null||!navigator.geolocation)return;
   try{geoWatchId=navigator.geolocation.watchPosition(onGeoFix,()=>{},
     {enableHighAccuracy:true,maximumAge:5000})}catch(e){}
+  clearTimeout(window._geoTO);                       /* страховка: не жжём GPS дольше 2 минут */
+  window._geoTO=setTimeout(stopGeoWatch,120000);
 }
 /* позиция определена — постоянный GPS больше не нужен (батарея, нагрев) */
 function stopGeoWatch(){
+  clearTimeout(window._geoTO);
   if(geoWatchId!=null&&navigator.geolocation){
     try{navigator.geolocation.clearWatch(geoWatchId)}catch(e){}
     geoWatchId=null;
@@ -1474,9 +1478,17 @@ const favs=new Set();
 function syncSticky(){
   const el=document.getElementById('sheetSticky');
   if(navView==='works'&&favs.size>=2){
-    el.innerHTML=`<button onclick="startMyRoute()">Собрать маршрут из ${favs.size} отмеченных</button>`;
+    el.innerHTML=`<div class="st-row"><button onclick="startMyRoute()">Собрать маршрут из ${favs.size} отмеченных</button>
+      <button class="st-x" onclick="clearFavs()" aria-label="Сбросить список">×</button></div>`;
     el.hidden=false;
   }else el.hidden=true;
+}
+/* сброс «Моего маршрута» одним нажатием */
+function clearFavs(){
+  favs.clear();syncSticky();
+  const row=document.getElementById('myRow');if(row)row.hidden=true;
+  if(sheet.classList.contains('fixed'))openNav(navView);   /* обновить кнопки «в маршруте» */
+  toast('Список отмеченного очищен');
 }
 function toggleFav(i,btn){
   const add=!favs.has(i);
@@ -1487,9 +1499,9 @@ function toggleFav(i,btn){
     ?`Отмечено ${favs.size} — внизу списка кнопка «Собрать маршрут»`
     :'Отметьте ещё что-нибудь — и соберу из этого маршрут');
   syncSticky();
-  const my=document.getElementById('myRouteBtn');
-  if(my){my.hidden=favs.size<2;
-    my.innerHTML=`<b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке`}
+  const my=document.getElementById('myRouteBtn'),row=document.getElementById('myRow');
+  if(my)my.innerHTML=`<b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке`;
+  if(row)row.hidden=favs.size<2;
 }
 /* порядок обхода: ближайший сосед + улучшение 2-opt (в среднем в пределах 2% от оптимума) */
 const _dcache={};
@@ -1565,8 +1577,11 @@ function openNav(view,q){
       <button onclick="goAmenity('exit','Выход')">К выходу</button>
     </div>
     <div class="sec">Маршруты</div>
-    <button class="mybtn" id="myRouteBtn" onclick="startMyRoute()" ${favs.size<2?'hidden':''}>
-      <b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке</button>`
+    <div class="myrow" id="myRow" ${favs.size<2?'hidden':''}>
+      <button class="mybtn" id="myRouteBtn" onclick="startMyRoute()">
+        <b>Мой маршрут · ${favs.size} ${favs.size<5?'экспоната':'экспонатов'}</b>Пройду по вашему списку в удобном порядке</button>
+      <button class="my-x" onclick="clearFavs()" aria-label="Сбросить список">×</button>
+    </div>`
     +ROUTES.map((r,i)=>`<button class="rt${r.hero?' hero':''}" onclick="startRoute(${i})">
       <span class="rt-row">
         <span class="thumb rt-cov"><span class="ph">${r.t[0]}</span><img data-q="${r.cov||r.t}" data-wt="${r.cov||''}" alt=""></span>
@@ -1679,6 +1694,7 @@ function finishTour(n){
    ${seen.length?`<div class="sec">Что вы посмотрели</div>`+seen.map(i=>`
      <div class="mp"><div class="mp-top" onclick="openWork(${i})">${thumbHTML(WORKS[i])}
        <div class="tx"><b>${WORKS[i].t}</b><span>${WORKS[i].a}</span></div></div></div>`).join(''):''}
+   ${tourName==='Мой маршрут'&&favs.size?`<button class="w-sec" style="margin-top:10px" onclick="clearFavs()">Очистить отмеченное</button>`:''}
    <div class="acts"><button onclick="closeSheet()">Закрыть</button>
    <button class="prim" onclick="openNav('routes')">Другой маршрут</button></div>`;
   document.getElementById('sheetSticky').hidden=true;
