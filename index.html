@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902113853">
+<link rel="stylesheet" href="styles.css?v=20260902114038">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902113853"></script>
-<script src="data/rooms.js?v=20260902113853"></script>
-<script src="data/works.js?v=20260902113853"></script>
-<script src="data/routes.js?v=20260902113853"></script>
+<script src="data/zones.js?v=20260902114038"></script>
+<script src="data/rooms.js?v=20260902114038"></script>
+<script src="data/works.js?v=20260902114038"></script>
+<script src="data/routes.js?v=20260902114038"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -1193,7 +1193,7 @@ function updateFollow(){
     let dir='';
     if(FLOOR!==3&&visibleOn(here,FLOOR)&&visibleOn(nn,FLOOR)){
       const[ax,ay]=ctr(here),[bx,by]=ctr(nn);
-      if(Math.abs(by-ay)>Math.abs(bx-ax)*1.4)dir=by<ay?' · к Неве':' · к Дворцовой';
+      if(Math.abs(by-ay)>Math.abs(bx-ax)*1.4)dir=by<ay?' — в сторону окон на Неву':' — в сторону Дворцовой площади';
     }
     /* проходные кафе и магазины — не остановки, а «пройдите насквозь» */
     goTo.textContent=isStair(nn)?('Идите на '+nx.name)
