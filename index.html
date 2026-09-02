@@ -13,7 +13,7 @@
 <title>Эрмитаж · Карта залов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260902121231">
+<link rel="stylesheet" href="styles.css?v=20260902125040">
 </head>
 <body>
 
@@ -100,10 +100,10 @@
 <div class="sticky" id="sheetSticky" hidden></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="data/zones.js?v=20260902121231"></script>
-<script src="data/rooms.js?v=20260902121231"></script>
-<script src="data/works.js?v=20260902121231"></script>
-<script src="data/routes.js?v=20260902121231"></script>
+<script src="data/zones.js?v=20260902125040"></script>
+<script src="data/rooms.js?v=20260902125040"></script>
+<script src="data/works.js?v=20260902125040"></script>
+<script src="data/routes.js?v=20260902125040"></script>
 <script>
 /* не даём браузеру масштабировать сам интерфейс: зум только внутри карты */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>
@@ -230,7 +230,7 @@ function buildFloor(){
         'font-size':tiny?7:(p.w<40?8:9),transform:`rotate(0 ${lx} ${ly})`},r.n);
       g.appendChild(t);labelEls.push({e:t,x:lx,y:ly,base:0});
       if(worksByRoom[r.n]&&!tiny){
-        const sx=p.x+p.w-7,sy=p.y+9;
+        const sx=p.x+p.w-10,sy=p.y+12;   /* звезда не наезжает на рамку зала */
         const st2=el('text',{x:sx,y:sy,class:'star','text-anchor':'middle',fill:'var(--z-numis)',
           transform:`rotate(0 ${sx} ${sy})`},'★');
         g.appendChild(st2);labelEls.push({e:st2,x:sx,y:sy,base:0});
@@ -1109,10 +1109,10 @@ function syncTools(){
   const rs=document.getElementById('resume');
   let h=12;
   const hb=document.getElementById('hereBar'),tg=document.getElementById('target');
-  if(!followEl.hidden) h=followEl.classList.contains('away')?40:followEl.offsetHeight+14;
-  else if(rs&&!rs.hidden) h=rs.offsetHeight+14;
-  else if(tg&&!tg.hidden) h=tg.offsetHeight+14;
-  else if(hb&&!hb.hidden) h=hb.offsetHeight+14;
+  if(!followEl.hidden) h=followEl.classList.contains('away')?48:followEl.offsetHeight+26;
+  else if(rs&&!rs.hidden) h=rs.offsetHeight+26;
+  else if(tg&&!tg.hidden) h=tg.offsetHeight+26;
+  else if(hb&&!hb.hidden) h=hb.offsetHeight+26;
   toolsEl.style.bottom=`calc(${h}px + env(safe-area-inset-bottom))`;
 }
 if(window.ResizeObserver)new ResizeObserver(()=>syncTools()).observe(followEl);
